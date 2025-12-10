@@ -2,6 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import type { DataUIPart } from "ai";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
@@ -22,7 +23,7 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
 import type { Vote } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
-import type { Attachment, ChatMessage } from "@/lib/types";
+import type { Attachment, ChatMessage, CustomUIDataTypes } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 import { Artifact } from "./artifact";
@@ -32,6 +33,7 @@ import { MultimodalInput } from "./multimodal-input";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
+import type { BusinessFunction } from "./business-function-selector";
 
 export function Chat({
   id,
@@ -75,11 +77,17 @@ export function Chat({
   const [usage, setUsage] = useState<AppUsage | undefined>(initialLastContext);
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
+  const [businessFunction, setBusinessFunction] = useState<BusinessFunction>("Sales");
   const currentModelIdRef = useRef(currentModelId);
+  const businessFunctionRef = useRef(businessFunction);
 
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
   }, [currentModelId]);
+
+  useEffect(() => {
+    businessFunctionRef.current = businessFunction;
+  }, [businessFunction]);
 
   const {
     messages,
@@ -97,20 +105,21 @@ export function Chat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       fetch: fetchWithErrorHandlers,
-      prepareSendMessagesRequest(request) {
+      prepareSendMessagesRequest(request: { id: string; messages: ChatMessage[]; body?: Record<string, unknown> }) {
         return {
           body: {
             id: request.id,
             message: request.messages.at(-1),
             selectedChatModel: currentModelIdRef.current,
             selectedVisibilityType: visibilityType,
+            businessFunction: businessFunctionRef.current,
             ...request.body,
           },
         };
       },
     }),
-    onData: (dataPart) => {
-      setDataStream((ds) => (ds ? [...ds, dataPart] : []));
+    onData: (dataPart: DataUIPart<CustomUIDataTypes>) => {
+      setDataStream((ds: DataUIPart<CustomUIDataTypes>[] | undefined) => (ds ? [...ds, dataPart] : [dataPart]));
       if (dataPart.type === "data-usage") {
         setUsage(dataPart.data);
       }
@@ -118,7 +127,7 @@ export function Chat({
     onFinish: () => {
       mutate(unstable_serialize(getChatHistoryPaginationKey));
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       if (error instanceof ChatSDKError) {
         // Check if it's a credit card error
         if (
@@ -171,8 +180,10 @@ export function Chat({
     <>
       <div className="overscroll-behavior-contain flex h-dvh min-w-0 touch-pan-y flex-col bg-background">
         <ChatHeader
+          businessFunction={businessFunction}
           chatId={id}
           isReadonly={isReadonly}
+          onBusinessFunctionChange={setBusinessFunction}
           selectedVisibilityType={initialVisibilityType}
         />
 

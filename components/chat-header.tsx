@@ -9,15 +9,20 @@ import { Button } from "@/components/ui/button";
 import { PlusIcon, VercelIcon } from "./icons";
 import { useSidebar } from "./ui/sidebar";
 import { VisibilitySelector, type VisibilityType } from "./visibility-selector";
+import { BusinessFunctionSelector, type BusinessFunction } from "./business-function-selector";
 
 function PureChatHeader({
+  businessFunction,
   chatId,
-  selectedVisibilityType,
   isReadonly,
+  onBusinessFunctionChange,
+  selectedVisibilityType,
 }: {
+  businessFunction: BusinessFunction;
   chatId: string;
-  selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
+  onBusinessFunctionChange: (functionType: BusinessFunction) => void;
+  selectedVisibilityType: VisibilityType;
 }) {
   const router = useRouter();
   const { open } = useSidebar();
@@ -43,11 +48,18 @@ function PureChatHeader({
       )}
 
       {!isReadonly && (
-        <VisibilitySelector
-          chatId={chatId}
-          className="order-1 md:order-2"
-          selectedVisibilityType={selectedVisibilityType}
-        />
+        <>
+          <BusinessFunctionSelector
+            className="order-1 md:order-2"
+            onBusinessFunctionChange={onBusinessFunctionChange}
+            selectedBusinessFunction={businessFunction}
+          />
+          <VisibilitySelector
+            chatId={chatId}
+            className="order-2 md:order-3"
+            selectedVisibilityType={selectedVisibilityType}
+          />
+        </>
       )}
 
       <Button
@@ -71,6 +83,7 @@ export const ChatHeader = memo(PureChatHeader, (prevProps, nextProps) => {
   return (
     prevProps.chatId === nextProps.chatId &&
     prevProps.selectedVisibilityType === nextProps.selectedVisibilityType &&
+    prevProps.businessFunction === nextProps.businessFunction &&
     prevProps.isReadonly === nextProps.isReadonly
   );
 });

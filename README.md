@@ -1,71 +1,168 @@
-<a href="https://chat.vercel.ai/">
-  <img alt="Next.js 14 and App Router-ready AI chatbot." src="app/(chat)/opengraph-image.png">
-  <h1 align="center">Chat SDK</h1>
-</a>
+# ROI Chatbot
 
-<p align="center">
-    Chat SDK is a free, open-source template built with Next.js and the AI SDK that helps you quickly build powerful chatbot applications.
-</p>
-
-<p align="center">
-  <a href="https://chat-sdk.dev"><strong>Read Docs</strong></a> ·
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#model-providers"><strong>Model Providers</strong></a> ·
-  <a href="#deploy-your-own"><strong>Deploy Your Own</strong></a> ·
-  <a href="#running-locally"><strong>Running locally</strong></a>
-</p>
-<br/>
+A Next.js-based AI chatbot application that integrates with n8n workflows to provide business function-specific responses. Built with the Vercel AI SDK, featuring chat history persistence, user authentication, and support for multiple business functions (Sales, Marketing, Customer Service).
 
 ## Features
 
-- [Next.js](https://nextjs.org) App Router
+- **Next.js 16** with App Router
   - Advanced routing for seamless navigation and performance
-  - React Server Components (RSCs) and Server Actions for server-side rendering and increased performance
-- [AI SDK](https://ai-sdk.dev/docs/introduction)
-  - Unified API for generating text, structured objects, and tool calls with LLMs
-  - Hooks for building dynamic chat and generative user interfaces
-  - Supports xAI (default), OpenAI, Fireworks, and other model providers
-- [shadcn/ui](https://ui.shadcn.com)
-  - Styling with [Tailwind CSS](https://tailwindcss.com)
-  - Component primitives from [Radix UI](https://radix-ui.com) for accessibility and flexibility
-- Data Persistence
-  - [Neon Serverless Postgres](https://vercel.com/marketplace/neon) for saving chat history and user data
-  - [Vercel Blob](https://vercel.com/storage/blob) for efficient file storage
-- [Auth.js](https://authjs.dev)
-  - Simple and secure authentication
+  - React Server Components (RSCs) and Server Actions for server-side rendering
+- **AI Integration**
+  - Vercel AI SDK for streaming chat responses
+  - n8n webhook integration for business logic processing
+  - Real-time message streaming with word-by-word display
+- **Business Functions**
+  - Sales, Marketing, and Customer Service support
+  - Function-specific responses via n8n workflows
+- **Authentication**
+  - NextAuth.js (Auth.js) for secure authentication
+  - Support for registered users and guest mode
+  - Session management with JWT tokens
+- **Data Persistence**
+  - PostgreSQL database (via Drizzle ORM)
+  - Chat history and message storage
+  - User management and chat ownership
+- **UI Components**
+  - shadcn/ui components with Tailwind CSS
+  - Responsive design with mobile support
+  - Dark/light theme support
+- **Rate Limiting**
+  - User-type-based message limits
+  - Daily message quotas per user type
 
-## Model Providers
+## Prerequisites
 
-This template uses the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) to access multiple AI models through a unified interface. The default configuration includes [xAI](https://x.ai) models (`grok-2-vision-1212`, `grok-3-mini`) routed through the gateway.
+- Node.js (v18 or higher)
+- pnpm (v9.12.3 or compatible)
+- PostgreSQL database (Neon, Supabase, or self-hosted)
+- n8n instance (for webhook integration)
 
-### AI Gateway Authentication
+## Quick Start
 
-**For Vercel deployments**: Authentication is handled automatically via OIDC tokens.
+1. **Install dependencies:**
+   ```bash
+   cd ai-chatbot
+   pnpm install
+   ```
 
-**For non-Vercel deployments**: You need to provide an AI Gateway API key by setting the `AI_GATEWAY_API_KEY` environment variable in your `.env.local` file.
+2. **Set up environment variables:**
+   Create a `.env.local` file with:
+   ```env
+   # Database
+   POSTGRES_URL=postgresql://user:password@host:port/database
+   
+   # Authentication
+   AUTH_SECRET=your-random-secret-key-here
+   
+   # n8n Configuration
+   N8N_BASE_URL=http://localhost:5678
+   N8N_WEBHOOK_ID=0a7ad9c6-bec1-45ff-9c4a-0884f6725583
+   ```
 
-With the [AI SDK](https://ai-sdk.dev/docs/introduction), you can also switch to direct LLM providers like [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Cohere](https://cohere.com/), and [many more](https://ai-sdk.dev/providers/ai-sdk-providers) with just a few lines of code.
+3. **Run database migrations:**
+   ```bash
+   pnpm db:migrate
+   ```
 
-## Deploy Your Own
+4. **Start the development server:**
+   ```bash
+   pnpm dev
+   ```
 
-You can deploy your own version of the Next.js AI Chatbot to Vercel with one click:
+5. **Access the application:**
+   Open [http://localhost:3000](http://localhost:3000) in your browser
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/templates/next.js/nextjs-ai-chatbot)
+For detailed setup instructions, see [GETTING_STARTED.md](./GETTING_STARTED.md).
 
-## Running locally
+## Project Structure
 
-You will need to use the environment variables [defined in `.env.example`](.env.example) to run Next.js AI Chatbot. It's recommended you use [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables) for this, but a `.env` file is all that is necessary.
-
-> Note: You should not commit your `.env` file or it will expose secrets that will allow others to control access to your various AI and authentication provider accounts.
-
-1. Install Vercel CLI: `npm i -g vercel`
-2. Link local instance with Vercel and GitHub accounts (creates `.vercel` directory): `vercel link`
-3. Download your environment variables: `vercel env pull`
-
-```bash
-pnpm install
-pnpm db:migrate # Setup database or apply latest database changes
-pnpm dev
+```
+ai-chatbot/
+├── app/
+│   ├── (auth)/          # Authentication routes
+│   │   ├── auth.ts      # NextAuth configuration
+│   │   ├── actions.ts   # Login/register actions
+│   │   └── api/auth/    # Auth API routes
+│   └── (chat)/          # Chat routes
+│       ├── api/chat/    # Chat API endpoint
+│       └── chat/[id]/   # Chat page
+├── components/          # React components
+│   ├── chat.tsx         # Main chat component
+│   ├── business-function-selector.tsx
+│   └── ...
+├── lib/
+│   ├── db/              # Database layer
+│   │   ├── schema.ts    # Drizzle schema
+│   │   └── queries.ts   # Database queries
+│   ├── types.ts         # TypeScript types
+│   └── errors.ts        # Error handling
+└── proxy.ts             # Route middleware
 ```
 
-Your app template should now be running on [localhost:3000](http://localhost:3000).
+## Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `POSTGRES_URL` | PostgreSQL connection string | Yes |
+| `AUTH_SECRET` | Secret key for NextAuth.js | Yes |
+| `N8N_BASE_URL` | Base URL of n8n instance | Yes |
+| `N8N_WEBHOOK_ID` | n8n webhook identifier | Yes |
+| `AI_GATEWAY_API_KEY` | Optional: AI Gateway API key for Vercel deployments | No |
+
+## Available Scripts
+
+- `pnpm dev` - Start development server
+- `pnpm build` - Build for production
+- `pnpm start` - Start production server
+- `pnpm db:migrate` - Run database migrations
+- `pnpm db:studio` - Open Drizzle Studio
+- `pnpm db:generate` - Generate new migration
+- `pnpm lint` - Run linter
+- `pnpm format` - Format code
+- `pnpm test` - Run E2E tests
+
+## n8n Integration
+
+The chatbot integrates with n8n workflows via webhooks. Each business function (Sales, Marketing, Customer Service) has its own webhook endpoint:
+
+```
+${N8N_BASE_URL}/webhook/${N8N_WEBHOOK_ID}/${businessFunction}
+```
+
+The webhook receives:
+```json
+{
+  "body": {
+    "message": "user message text",
+    "sessionId": "chat-id",
+    "userId": "user-id",
+    "functions": ["Sales"]
+  }
+}
+```
+
+And should return:
+```json
+{
+  "success": true,
+  "response": "assistant response text"
+}
+```
+
+## Documentation
+
+- [Getting Started Guide](./GETTING_STARTED.md) - Detailed setup instructions
+- [Codebase Overview](./CODEBASE_OVERVIEW.md) - Architecture and implementation details
+
+## Deployment
+
+This application is optimized for Vercel deployments but can be deployed to any platform that supports Next.js:
+
+1. Set up environment variables in your deployment platform
+2. Run database migrations: `pnpm db:migrate`
+3. Ensure your n8n instance is accessible from the deployment
+4. Deploy the application
+
+## License
+
+See [LICENSE](./LICENSE) for details.

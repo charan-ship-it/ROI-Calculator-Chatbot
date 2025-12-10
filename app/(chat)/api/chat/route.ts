@@ -1,69 +1,33 @@
-import { geolocation } from "@vercel/functions";
 import {
-  convertToModelMessages,
   createUIMessageStream,
   JsonToSseTransformStream,
-  smoothStream,
-  stepCountIs,
-  streamText,
+  type UIMessageStreamWriter,
 } from "ai";
-import { unstable_cache as cache } from "next/cache";
 import { after } from "next/server";
 import {
   createResumableStreamContext,
   type ResumableStreamContext,
 } from "resumable-stream";
-import type { ModelCatalog } from "tokenlens/core";
-import { fetchModels } from "tokenlens/fetch";
-import { getUsage } from "tokenlens/helpers";
 import { auth, type UserType } from "@/app/(auth)/auth";
 import type { VisibilityType } from "@/components/visibility-selector";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
-import type { ChatModel } from "@/lib/ai/models";
-import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
-import { myProvider } from "@/lib/ai/providers";
-import { createDocument } from "@/lib/ai/tools/create-document";
-import { getWeather } from "@/lib/ai/tools/get-weather";
-import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
-import { updateDocument } from "@/lib/ai/tools/update-document";
-import { isProductionEnvironment } from "@/lib/constants";
 import {
   createStreamId,
   deleteChatById,
   getChatById,
   getMessageCountByUserId,
-  getMessagesByChatId,
   saveChat,
   saveMessages,
-  updateChatLastContextById,
 } from "@/lib/db/queries";
-import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import type { ChatMessage } from "@/lib/types";
-import type { AppUsage } from "@/lib/usage";
-import { convertToUIMessages, generateUUID } from "@/lib/utils";
+import { generateUUID, getTextFromMessage } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 
 export const maxDuration = 60;
 
 let globalStreamContext: ResumableStreamContext | null = null;
-
-const getTokenlensCatalog = cache(
-  async (): Promise<ModelCatalog | undefined> => {
-    try {
-      return await fetchModels();
-    } catch (err) {
-      console.warn(
-        "TokenLens: catalog fetch failed, using default catalog",
-        err
-      );
-      return; // tokenlens helpers will fall back to defaultCatalog
-    }
-  },
-  ["tokenlens-catalog"],
-  { revalidate: 24 * 60 * 60 } // 24 hours
-);
 
 export function getStreamContext() {
   if (!globalStreamContext) {
@@ -99,13 +63,8 @@ export async function POST(request: Request) {
     const {
       id,
       message,
-      selectedChatModel,
       selectedVisibilityType,
-    }: {
-      id: string;
-      message: ChatMessage;
-      selectedChatModel: ChatModel["id"];
-      selectedVisibilityType: VisibilityType;
+      businessFunction = "Sales",
     } = requestBody;
 
     const session = await auth();
@@ -126,14 +85,11 @@ export async function POST(request: Request) {
     }
 
     const chat = await getChatById({ id });
-    let messagesFromDb: DBMessage[] = [];
 
     if (chat) {
       if (chat.userId !== session.user.id) {
         return new ChatSDKError("forbidden:chat").toResponse();
       }
-      // Only fetch messages if chat already exists
-      messagesFromDb = await getMessagesByChatId({ id });
     } else {
       const title = await generateTitleFromUserMessage({
         message,
@@ -145,20 +101,16 @@ export async function POST(request: Request) {
         title,
         visibility: selectedVisibilityType,
       });
-      // New chat - no need to fetch messages, it's empty
     }
 
-    const uiMessages = [...convertToUIMessages(messagesFromDb), message];
+    // Extract text from the latest user message
+    const userMessageText = getTextFromMessage(message);
 
-    const { longitude, latitude, city, country } = geolocation(request);
+    if (!userMessageText) {
+      return new ChatSDKError("bad_request:api").toResponse();
+    }
 
-    const requestHints: RequestHints = {
-      longitude,
-      latitude,
-      city,
-      country,
-    };
-
+    // Save user message to database
     await saveMessages({
       messages: [
         {
@@ -175,118 +127,152 @@ export async function POST(request: Request) {
     const streamId = generateUUID();
     await createStreamId({ streamId, chatId: id });
 
-    let finalMergedUsage: AppUsage | undefined;
+    // Get n8n configuration from environment variables
+    const n8nBaseUrl = process.env.N8N_BASE_URL || "https://n8n.srv838270.hstgr.cloud";
+    const n8nWebhookId = process.env.N8N_WEBHOOK_ID || "0a7ad9c6-bec1-45ff-9c4a-0884f6725583";
+    const n8nWebhookUrl = `${n8nBaseUrl}/webhook/${n8nWebhookId}/${businessFunction}`;
 
-    const stream = createUIMessageStream({
-      execute: ({ writer: dataStream }) => {
-        const result = streamText({
-          model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({ selectedChatModel, requestHints }),
-          messages: convertToModelMessages(uiMessages),
-          stopWhen: stepCountIs(5),
-          experimental_activeTools:
-            selectedChatModel === "chat-model-reasoning"
-              ? []
-              : [
-                  "getWeather",
-                  "createDocument",
-                  "updateDocument",
-                  "requestSuggestions",
-                ],
-          experimental_transform: smoothStream({ chunking: "word" }),
-          tools: {
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({
-              session,
-              dataStream,
-            }),
-          },
-          experimental_telemetry: {
-            isEnabled: isProductionEnvironment,
-            functionId: "stream-text",
-          },
-          onFinish: async ({ usage }) => {
-            try {
-              const providers = await getTokenlensCatalog();
-              const modelId =
-                myProvider.languageModel(selectedChatModel).modelId;
-              if (!modelId) {
-                finalMergedUsage = usage;
-                dataStream.write({
-                  type: "data-usage",
-                  data: finalMergedUsage,
-                });
-                return;
-              }
-
-              if (!providers) {
-                finalMergedUsage = usage;
-                dataStream.write({
-                  type: "data-usage",
-                  data: finalMergedUsage,
-                });
-                return;
-              }
-
-              const summary = getUsage({ modelId, usage, providers });
-              finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
-              dataStream.write({ type: "data-usage", data: finalMergedUsage });
-            } catch (err) {
-              console.warn("TokenLens enrichment failed", err);
-              finalMergedUsage = usage;
-              dataStream.write({ type: "data-usage", data: finalMergedUsage });
-            }
-          },
-        });
-
-        result.consumeStream();
-
-        dataStream.merge(
-          result.toUIMessageStream({
-            sendReasoning: true,
-          })
-        );
+    // Prepare request body for n8n
+    const n8nRequestBody = {
+      body: {
+        message: userMessageText,
+        sessionId: id, // Use chat ID as session ID
+        userId: session.user.id,
+        functions: [businessFunction],
       },
-      generateId: generateUUID,
-      onFinish: async ({ messages }) => {
-        await saveMessages({
-          messages: messages.map((currentMessage) => ({
-            id: currentMessage.id,
-            role: currentMessage.role,
-            parts: currentMessage.parts,
+    };
+
+    // Call n8n webhook
+    let n8nResponse: Response;
+    try {
+      console.log("Calling n8n webhook:", n8nWebhookUrl);
+      console.log("Request body:", JSON.stringify(n8nRequestBody, null, 2));
+      
+      n8nResponse = await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(n8nRequestBody),
+      });
+
+      console.log("n8n response status:", n8nResponse.status, n8nResponse.statusText);
+
+      if (!n8nResponse.ok) {
+        const errorText = await n8nResponse.text();
+        console.error("n8n webhook error - Status:", n8nResponse.status);
+        console.error("n8n webhook error - Response:", errorText);
+        return new ChatSDKError("offline:chat").toResponse();
+      }
+    } catch (error) {
+      console.error("Failed to call n8n webhook - Error:", error);
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      return new ChatSDKError("offline:chat").toResponse();
+    }
+
+    // Parse n8n response
+    let n8nData: any;
+    let responseText = "";
+    try {
+      responseText = await n8nResponse.text();
+      console.log("n8n raw response:", responseText);
+      n8nData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("Failed to parse n8n response as JSON:", parseError);
+      console.error("Response text:", responseText || "No response text available");
+      return new ChatSDKError("offline:chat").toResponse();
+    }
+
+    console.log("n8n parsed data:", JSON.stringify(n8nData, null, 2));
+
+    // Handle n8n response format: 
+    // - Array format: [{ success: true, response: "..." }]
+    // - Object with json wrapper: { json: { success: true, response: "..." } }
+    // - Direct object: { success: true, response: "..." }
+    let responseData: any;
+    
+    if (Array.isArray(n8nData) && n8nData.length > 0) {
+      // If it's an array, take the first element
+      responseData = n8nData[0];
+    } else if (n8nData.json) {
+      // If it has a json wrapper
+      responseData = n8nData.json;
+    } else {
+      // Direct object format
+      responseData = n8nData;
+    }
+
+    if (!responseData || !responseData.success || !responseData.response) {
+      console.error("n8n returned invalid response structure:");
+      console.error("responseData:", JSON.stringify(responseData, null, 2));
+      console.error("Full n8nData:", JSON.stringify(n8nData, null, 2));
+      return new ChatSDKError("offline:chat").toResponse();
+    }
+
+    const assistantResponse = responseData.response;
+    console.log("Successfully extracted response from n8n");
+
+    // Save assistant message to database first
+    const assistantMessageId = generateUUID();
+    const assistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      role: "assistant",
+      parts: [{ type: "text", text: assistantResponse }],
+      metadata: {
+        createdAt: new Date().toISOString(),
+      },
+    };
+
+    try {
+      await saveMessages({
+        messages: [
+          {
+            id: assistantMessageId,
+            role: "assistant",
+            parts: [{ type: "text", text: assistantResponse }],
             createdAt: new Date(),
             attachments: [],
             chatId: id,
-          })),
-        });
+          },
+        ],
+      });
+    } catch (error) {
+      console.error("Error saving assistant message to database:", error);
+      // Continue even if save fails - we'll still stream the message
+    }
 
-        if (finalMergedUsage) {
-          try {
-            await updateChatLastContextById({
-              chatId: id,
-              context: finalMergedUsage,
-            });
-          } catch (err) {
-            console.warn("Unable to persist last usage for chat", id, err);
-          }
-        }
+    // Create a stream that appends the complete message
+    // Note: We save first, then append, because text-delta doesn't work with UIMessageStreamWriter
+    const stream = createUIMessageStream<ChatMessage>({
+      execute: ({ writer: dataStream }) => {
+        // Append the complete message using appendMessage
+        // This is the proper way to add a complete message to the stream
+        dataStream.write({
+          type: "data-appendMessage",
+          data: JSON.stringify({
+            id: assistantMessageId,
+            role: "assistant",
+            parts: [{ type: "text", text: assistantResponse }],
+            metadata: {
+              createdAt: new Date().toISOString(),
+            },
+          }),
+          transient: false,
+        });
       },
-      onError: () => {
+      generateId: generateUUID,
+      onFinish: async () => {
+        // Message already saved above
+        console.log("Message stream finished");
+      },
+      onError: (error) => {
+        console.error("Error in message stream:", error);
         return "Oops, an error occurred!";
       },
     });
-
-    // const streamContext = getStreamContext();
-
-    // if (streamContext) {
-    //   return new Response(
-    //     await streamContext.resumableStream(streamId, () =>
-    //       stream.pipeThrough(new JsonToSseTransformStream())
-    //     )
-    //   );
-    // }
 
     return new Response(stream.pipeThrough(new JsonToSseTransformStream()));
   } catch (error) {
@@ -294,16 +280,6 @@ export async function POST(request: Request) {
 
     if (error instanceof ChatSDKError) {
       return error.toResponse();
-    }
-
-    // Check for Vercel AI Gateway credit card error
-    if (
-      error instanceof Error &&
-      error.message?.includes(
-        "AI Gateway requires a valid credit card on file to service requests"
-      )
-    ) {
-      return new ChatSDKError("bad_request:activate_gateway").toResponse();
     }
 
     console.error("Unhandled error in chat API:", error, { vercelId });
