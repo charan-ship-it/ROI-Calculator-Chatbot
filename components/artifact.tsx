@@ -25,7 +25,6 @@ import { ArtifactCloseButton } from "./artifact-close-button";
 import { ArtifactMessages } from "./artifact-messages";
 import { MultimodalInput } from "./multimodal-input";
 import { Toolbar } from "./toolbar";
-import { useSidebar } from "./ui/sidebar";
 import { VersionFooter } from "./version-footer";
 import type { VisibilityType } from "./visibility-selector";
 
@@ -102,7 +101,8 @@ function PureArtifact({
   const [document, setDocument] = useState<Document | null>(null);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
 
-  const { open: isSidebarOpen } = useSidebar();
+  // Sidebar is always closed since we removed it
+  const isSidebarOpen = false;
 
   useEffect(() => {
     if (documents && documents.length > 0) {
