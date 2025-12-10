@@ -216,6 +216,7 @@ export function Chat({
               status={status}
               stop={stop}
               usage={usage}
+              businessFunction={businessFunction}
             />
           )}
         </div>

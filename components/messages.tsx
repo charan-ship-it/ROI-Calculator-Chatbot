@@ -44,12 +44,13 @@ function PureMessages({
   useDataStream();
 
   return (
-    <div className="relative flex-1 overflow-hidden">
+    <div className="relative flex-1 min-h-0 overflow-hidden">
       <div
-        className="h-full overflow-y-auto touch-pan-y"
+        className="h-full w-full overflow-y-auto touch-pan-y overscroll-contain"
         ref={messagesContainerRef}
+        style={{ WebkitOverflowScrolling: "touch" }}
       >
-        <div className="mx-auto flex min-w-0 max-w-4xl flex-col gap-4 px-2 py-4 md:gap-6 md:px-4">
+        <div className="mx-auto flex min-w-0 max-w-4xl flex-col gap-4 px-2 py-4 md:gap-6 md:px-4 pb-8">
           {messages.length === 0 && <Greeting />}
 
           {messages.map((message, index) => (

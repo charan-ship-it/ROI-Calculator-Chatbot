@@ -21,13 +21,10 @@ export function useScrollToBottom() {
   }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    if (!containerRef.current) {
+    if (!containerRef.current || !endRef.current) {
       return;
     }
-    containerRef.current.scrollTo({
-      top: containerRef.current.scrollHeight,
-      behavior,
-    });
+    endRef.current.scrollIntoView({ behavior, block: "end" });
   }, []);
 
   // Handle user scroll events
@@ -65,40 +62,68 @@ export function useScrollToBottom() {
   // Auto-scroll when content changes
   useEffect(() => {
     const container = containerRef.current;
+    const endElement = endRef.current;
     if (!container) {
       return;
     }
 
     const scrollIfNeeded = () => {
       // Only auto-scroll if user was at bottom and isn't actively scrolling
-      if (isAtBottomRef.current && !isUserScrollingRef.current) {
+      if (isAtBottomRef.current && !isUserScrollingRef.current && endElement) {
         requestAnimationFrame(() => {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: "instant",
-          });
-          setIsAtBottom(true);
-          isAtBottomRef.current = true;
+          if (endElement) {
+            // Use scrollIntoView on the end element for reliable scrolling
+            endElement.scrollIntoView({ behavior: "instant", block: "end" });
+            setIsAtBottom(true);
+            isAtBottomRef.current = true;
+          }
         });
       }
     };
 
-    // Watch for DOM changes
+    // Watch for DOM changes - observe the entire subtree
     const mutationObserver = new MutationObserver(scrollIfNeeded);
     mutationObserver.observe(container, {
       childList: true,
       subtree: true,
       characterData: true,
+      attributes: true,
     });
 
-    // Watch for size changes
+    // Watch for size changes - observe container and all descendants
     const resizeObserver = new ResizeObserver(scrollIfNeeded);
     resizeObserver.observe(container);
-
-    // Also observe children for size changes
-    for (const child of container.children) {
-      resizeObserver.observe(child);
+    
+    // Observe the end element specifically
+    if (endElement) {
+      resizeObserver.observe(endElement);
     }
+
+    // Use a more reliable method to observe all content changes
+    const observeAll = () => {
+      if (container) {
+        const walker = document.createTreeWalker(
+          container,
+          NodeFilter.SHOW_ELEMENT,
+          null
+        );
+        let node;
+        while ((node = walker.nextNode())) {
+          if (node instanceof Element) {
+            resizeObserver.observe(node);
+          }
+        }
+      }
+    };
+    
+    // Initial observation
+    observeAll();
+    
+    // Re-observe when content changes
+    mutationObserver.observe(container, {
+      childList: true,
+      subtree: true,
+    });
 
     return () => {
       mutationObserver.disconnect();

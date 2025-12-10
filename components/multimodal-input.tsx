@@ -17,7 +17,6 @@ import { useLocalStorage, useWindowSize } from "usehooks-ts";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
-import { Context } from "./elements/context";
 import {
   PromptInput,
   PromptInputSubmit,
@@ -32,6 +31,7 @@ import {
 import { SuggestedActions } from "./suggested-actions";
 import { Button } from "./ui/button";
 import type { VisibilityType } from "./visibility-selector";
+import type { BusinessFunction } from "./business-function-selector";
 
 function PureMultimodalInput({
   chatId,
@@ -49,6 +49,7 @@ function PureMultimodalInput({
   selectedModelId: _selectedModelId,
   onModelChange: _onModelChange,
   usage,
+  businessFunction,
 }: {
   chatId: string;
   input: string;
@@ -65,6 +66,7 @@ function PureMultimodalInput({
   selectedModelId: string;
   onModelChange?: (modelId: string) => void;
   usage?: AppUsage;
+  businessFunction?: BusinessFunction;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -142,13 +144,6 @@ function PureMultimodalInput({
     resetHeight,
   ]);
 
-  const contextProps = useMemo(
-    () => ({
-      usage,
-    }),
-    [usage]
-  );
-
   return (
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
       {messages.length === 0 && (
@@ -156,6 +151,7 @@ function PureMultimodalInput({
           chatId={chatId}
           selectedVisibilityType={selectedVisibilityType}
           sendMessage={sendMessage}
+          businessFunction={businessFunction}
         />
       )}
 
@@ -184,7 +180,6 @@ function PureMultimodalInput({
             rows={1}
             value={input}
           />
-          <Context {...contextProps} />
         </div>
         <PromptInputToolbar className="!border-top-0 border-t-0! p-0 shadow-none dark:border-0 dark:border-transparent!">
           <PromptInputTools className="gap-0 sm:gap-0.5">
@@ -195,12 +190,16 @@ function PureMultimodalInput({
             <StopButton setMessages={setMessages} stop={stop} />
           ) : (
             <PromptInputSubmit
-              className="size-8 rounded-full bg-primary text-primary-foreground transition-colors duration-200 hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
+              className="size-8 rounded-full transition-colors duration-200 hover:opacity-90 disabled:bg-muted disabled:text-muted-foreground"
               data-testid="send-button"
               disabled={!input.trim()}
               status={status}
+              style={{
+                backgroundColor: "#FF8C00",
+                color: "#FFFFFF",
+              }}
             >
-              <ArrowUpIcon size={14} />
+              <ArrowUpIcon size={14} style={{ color: "#FFFFFF" }} />
             </PromptInputSubmit>
           )}
         </PromptInputToolbar>
@@ -235,15 +234,19 @@ function PureStopButton({
 }) {
   return (
     <Button
-      className="size-7 rounded-full bg-foreground p-1 text-background transition-colors duration-200 hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground"
+      className="size-7 rounded-full transition-colors duration-200 hover:opacity-90 disabled:bg-muted disabled:text-muted-foreground"
       data-testid="stop-button"
       onClick={(event) => {
         event.preventDefault();
         stop();
         setMessages((messages) => messages);
       }}
+      style={{
+        backgroundColor: "#FF8C00",
+        color: "#FFFFFF",
+      }}
     >
-      <StopIcon size={14} />
+      <StopIcon size={14} style={{ color: "#FFFFFF" }} />
     </Button>
   );
 }
