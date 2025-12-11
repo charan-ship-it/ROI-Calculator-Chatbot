@@ -109,7 +109,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
     mutate,
     error,
   } = useSWRInfinite<ChatHistory>(
-    user ? getChatHistoryPaginationKey : null,
+    user ? getChatHistoryPaginationKey : () => null,
     fetcher,
     {
       fallbackData: [],
