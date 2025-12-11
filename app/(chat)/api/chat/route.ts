@@ -160,7 +160,7 @@ export async function POST(request: Request) {
 
     // Build webhook URL with businessFunction as path parameter
     // Format: /webhook/{webhookId}/{businessFunction}
-    const n8nWebhookUrl = `${n8nBaseUrl}/webhook-test/${n8nWebhookId}/${businessFunction}`;
+    const n8nWebhookUrl = `${n8nBaseUrl}/webhook/${n8nWebhookId}/${businessFunction}`;
 
     // Prepare request body for n8n
     // Send data directly without wrapping in "body" key
