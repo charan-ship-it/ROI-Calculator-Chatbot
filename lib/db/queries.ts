@@ -53,6 +53,15 @@ export async function getUser(email: string): Promise<User[]> {
   }
 }
 
+export async function getUserById(id: string): Promise<User | null> {
+  try {
+    const [selectedUser] = await db.select().from(user).where(eq(user.id, id));
+    return selectedUser ?? null;
+  } catch (_error) {
+    throw new ChatSDKError("bad_request:database", "Failed to get user by id");
+  }
+}
+
 export async function createUser(email: string, password: string) {
   const hashedPassword = generateHashedPassword(password);
 
@@ -481,6 +490,23 @@ export async function deleteMessagesByChatIdAfterTimestamp({
     throw new ChatSDKError(
       "bad_request:database",
       "Failed to delete messages by chat id after timestamp"
+    );
+  }
+}
+
+export async function updateChatUserIdById({
+  chatId,
+  userId,
+}: {
+  chatId: string;
+  userId: string;
+}) {
+  try {
+    return await db.update(chat).set({ userId }).where(eq(chat.id, chatId));
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to update chat user id by id"
     );
   }
 }

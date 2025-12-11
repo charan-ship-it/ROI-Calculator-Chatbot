@@ -1,23 +1,19 @@
-import {
-  createUIMessageStream,
-  JsonToSseTransformStream,
-  type UIMessageStreamWriter,
-} from "ai";
+import { createUIMessageStream, JsonToSseTransformStream } from "ai";
 import { after } from "next/server";
 import {
   createResumableStreamContext,
   type ResumableStreamContext,
 } from "resumable-stream";
-import { auth, type UserType } from "@/app/(auth)/auth";
-import type { VisibilityType } from "@/components/visibility-selector";
-import { entitlementsByUserType } from "@/lib/ai/entitlements";
+import { auth } from "@/app/(auth)/auth";
 import {
+  createGuestUser,
   createStreamId,
   deleteChatById,
   getChatById,
-  getMessageCountByUserId,
+  getUserById,
   saveChat,
   saveMessages,
+  updateChatUserIdById,
 } from "@/lib/db/queries";
 import { ChatSDKError } from "@/lib/errors";
 import type { ChatMessage } from "@/lib/types";
@@ -73,22 +69,46 @@ export async function POST(request: Request) {
       return new ChatSDKError("unauthorized:chat").toResponse();
     }
 
-    const userType: UserType = session.user.type;
-
-    const messageCount = await getMessageCountByUserId({
-      id: session.user.id,
-      differenceInHours: 24,
-    });
-
-    if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
-      return new ChatSDKError("rate_limit:chat").toResponse();
-    }
-
+    // Get chat first to check if it already exists
     const chat = await getChatById({ id });
 
+    // Ensure user exists in database, create guest if not
+    let currentUserId = session.user.id;
+    const existingUser = await getUserById(session.user.id);
+
+    if (!existingUser) {
+      // User was deleted from DB but session still has old ID
+      // If chat exists and belongs to a guest user, reuse that guest user
+      if (chat) {
+        const chatOwner = await getUserById(chat.userId);
+        if (chatOwner?.email.startsWith("guest-")) {
+          // Chat belongs to a guest user, reuse that user ID
+          currentUserId = chat.userId;
+        } else {
+          // Create new guest user
+          const [newGuestUser] = await createGuestUser();
+          currentUserId = newGuestUser.id;
+        }
+      } else {
+        // No chat yet, create new guest user
+        const [newGuestUser] = await createGuestUser();
+        currentUserId = newGuestUser.id;
+      }
+    }
+
     if (chat) {
-      if (chat.userId !== session.user.id) {
-        return new ChatSDKError("forbidden:chat").toResponse();
+      // Check if chat's owner still exists
+      const chatOwner = await getUserById(chat.userId);
+
+      if (chat.userId !== currentUserId) {
+        // If chat owner exists but is different user, deny access
+        if (chatOwner) {
+          // Chat belongs to a different existing user, deny access
+          return new ChatSDKError("forbidden:chat").toResponse();
+        }
+        // Chat owner doesn't exist (was deleted), allow access and update chat ownership
+        // Update chat to belong to current user
+        await updateChatUserIdById({ chatId: id, userId: currentUserId });
       }
     } else {
       const title = await generateTitleFromUserMessage({
@@ -97,7 +117,7 @@ export async function POST(request: Request) {
 
       await saveChat({
         id,
-        userId: session.user.id,
+        userId: currentUserId, // Use existing or newly created user ID
         title,
         visibility: selectedVisibilityType,
       });
@@ -128,8 +148,10 @@ export async function POST(request: Request) {
     await createStreamId({ streamId, chatId: id });
 
     // Get n8n configuration from environment variables
-    const n8nBaseUrl = process.env.N8N_BASE_URL || "https://n8n.srv838270.hstgr.cloud";
-    const n8nWebhookId = process.env.N8N_WEBHOOK_ID || "0a7ad9c6-bec1-45ff-9c4a-0884f6725583";
+    const n8nBaseUrl =
+      process.env.N8N_BASE_URL || "https://n8n.srv838270.hstgr.cloud";
+    const n8nWebhookId =
+      process.env.N8N_WEBHOOK_ID || "0a7ad9c6-bec1-45ff-9c4a-0884f6725583";
     const n8nWebhookUrl = `${n8nBaseUrl}/webhook/${n8nWebhookId}/${businessFunction}`;
 
     // Prepare request body for n8n
@@ -137,7 +159,7 @@ export async function POST(request: Request) {
       body: {
         message: userMessageText,
         sessionId: id, // Use chat ID as session ID
-        userId: session.user.id,
+        userId: currentUserId,
         functions: [businessFunction],
       },
     };
@@ -147,7 +169,7 @@ export async function POST(request: Request) {
     try {
       console.log("Calling n8n webhook:", n8nWebhookUrl);
       console.log("Request body:", JSON.stringify(n8nRequestBody, null, 2));
-      
+
       n8nResponse = await fetch(n8nWebhookUrl, {
         method: "POST",
         headers: {
@@ -156,7 +178,11 @@ export async function POST(request: Request) {
         body: JSON.stringify(n8nRequestBody),
       });
 
-      console.log("n8n response status:", n8nResponse.status, n8nResponse.statusText);
+      console.log(
+        "n8n response status:",
+        n8nResponse.status,
+        n8nResponse.statusText
+      );
 
       if (!n8nResponse.ok) {
         const errorText = await n8nResponse.text();
@@ -182,18 +208,21 @@ export async function POST(request: Request) {
       n8nData = JSON.parse(responseText);
     } catch (parseError) {
       console.error("Failed to parse n8n response as JSON:", parseError);
-      console.error("Response text:", responseText || "No response text available");
+      console.error(
+        "Response text:",
+        responseText || "No response text available"
+      );
       return new ChatSDKError("offline:chat").toResponse();
     }
 
     console.log("n8n parsed data:", JSON.stringify(n8nData, null, 2));
 
-    // Handle n8n response format: 
+    // Handle n8n response format:
     // - Array format: [{ success: true, response: "..." }]
     // - Object with json wrapper: { json: { success: true, response: "..." } }
     // - Direct object: { success: true, response: "..." }
     let responseData: any;
-    
+
     if (Array.isArray(n8nData) && n8nData.length > 0) {
       // If it's an array, take the first element
       responseData = n8nData[0];
@@ -217,14 +246,6 @@ export async function POST(request: Request) {
 
     // Save assistant message to database first
     const assistantMessageId = generateUUID();
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: "assistant",
-      parts: [{ type: "text", text: assistantResponse }],
-      metadata: {
-        createdAt: new Date().toISOString(),
-      },
-    };
 
     try {
       await saveMessages({
@@ -264,7 +285,7 @@ export async function POST(request: Request) {
         });
       },
       generateId: generateUUID,
-      onFinish: async () => {
+      onFinish: () => {
         // Message already saved above
         console.log("Message stream finished");
       },
@@ -301,10 +322,35 @@ export async function DELETE(request: Request) {
     return new ChatSDKError("unauthorized:chat").toResponse();
   }
 
+  // Ensure user exists in database, create guest if not
+  let currentUserId = session.user.id;
+  const existingUser = await getUserById(session.user.id);
+
+  if (!existingUser) {
+    // User was deleted from DB but session still has old ID
+    // Create new guest user and use it
+    const [newGuestUser] = await createGuestUser();
+    currentUserId = newGuestUser.id;
+  }
+
   const chat = await getChatById({ id });
 
-  if (chat?.userId !== session.user.id) {
-    return new ChatSDKError("forbidden:chat").toResponse();
+  if (!chat) {
+    return new ChatSDKError("not_found:chat").toResponse();
+  }
+
+  // Check if chat's owner still exists
+  const chatOwner = await getUserById(chat.userId);
+
+  if (chat.userId !== currentUserId) {
+    // If chat owner exists but is different user, deny access
+    if (chatOwner) {
+      // Chat belongs to a different existing user, deny access
+      return new ChatSDKError("forbidden:chat").toResponse();
+    }
+    // Chat owner doesn't exist (was deleted), allow access and update chat ownership
+    // Update chat to belong to new guest user
+    await updateChatUserIdById({ chatId: id, userId: currentUserId });
   }
 
   const deletedChat = await deleteChatById({ id });

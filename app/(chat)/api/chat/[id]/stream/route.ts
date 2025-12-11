@@ -2,9 +2,12 @@ import { createUIMessageStream, JsonToSseTransformStream } from "ai";
 import { differenceInSeconds } from "date-fns";
 import { auth } from "@/app/(auth)/auth";
 import {
+  createGuestUser,
   getChatById,
   getMessagesByChatId,
   getStreamIdsByChatId,
+  getUserById,
+  updateChatUserIdById,
 } from "@/lib/db/queries";
 import type { Chat } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
@@ -46,8 +49,31 @@ export async function GET(
     return new ChatSDKError("not_found:chat").toResponse();
   }
 
-  if (chat.visibility === "private" && chat.userId !== session.user.id) {
-    return new ChatSDKError("forbidden:chat").toResponse();
+  // Ensure user exists in database, create guest if not
+  let currentUserId = session.user.id;
+  const existingUser = await getUserById(session.user.id);
+
+  if (!existingUser) {
+    // User was deleted from DB but session still has old ID
+    // Create new guest user and use it
+    const [newGuestUser] = await createGuestUser();
+    currentUserId = newGuestUser.id;
+  }
+
+  if (chat.visibility === "private") {
+    // Check if chat's owner still exists
+    const chatOwner = await getUserById(chat.userId);
+
+    if (chat.userId !== currentUserId) {
+      // If chat owner exists but is different user, deny access
+      if (chatOwner) {
+        // Chat belongs to a different existing user, deny access
+        return new ChatSDKError("forbidden:chat").toResponse();
+      }
+      // Chat owner doesn't exist (was deleted), allow access and update chat ownership
+      // Update chat to belong to new guest user
+      await updateChatUserIdById({ chatId, userId: currentUserId });
+    }
   }
 
   const streamIds = await getStreamIdsByChatId({ chatId });

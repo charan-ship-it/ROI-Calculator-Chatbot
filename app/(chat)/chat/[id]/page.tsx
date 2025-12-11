@@ -6,7 +6,13 @@ import { auth } from "@/app/(auth)/auth";
 import { Chat } from "@/components/chat";
 import { DataStreamHandler } from "@/components/data-stream-handler";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
-import { getChatById, getMessagesByChatId } from "@/lib/db/queries";
+import {
+  createGuestUser,
+  getChatById,
+  getMessagesByChatId,
+  getUserById,
+  updateChatUserIdById,
+} from "@/lib/db/queries";
 import { convertToUIMessages } from "@/lib/utils";
 
 export default function Page(props: { params: Promise<{ id: string }> }) {
@@ -31,13 +37,34 @@ async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
     redirect("/api/auth/guest");
   }
 
-  if (chat.visibility === "private") {
-    if (!session.user) {
-      return notFound();
-    }
+  if (!session.user) {
+    return notFound();
+  }
 
-    if (session.user.id !== chat.userId) {
-      return notFound();
+  // Ensure user exists in database, create guest if not
+  let currentUserId = session.user.id;
+  const existingUser = await getUserById(session.user.id);
+
+  if (!existingUser) {
+    // User was deleted from DB but session still has old ID
+    // Create new guest user and use it
+    const [newGuestUser] = await createGuestUser();
+    currentUserId = newGuestUser.id;
+  }
+
+  if (chat.visibility === "private") {
+    // Check if chat's owner still exists
+    const chatOwner = await getUserById(chat.userId);
+
+    if (chat.userId !== currentUserId) {
+      // If chat owner exists but is different user, deny access
+      if (chatOwner) {
+        // Chat belongs to a different existing user, deny access
+        return notFound();
+      }
+      // Chat owner doesn't exist (was deleted), allow access and update chat ownership
+      // Update chat to belong to new guest user
+      await updateChatUserIdById({ chatId: chat.id, userId: currentUserId });
     }
   }
 
@@ -60,7 +87,7 @@ async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
           initialLastContext={chat.lastContext ?? undefined}
           initialMessages={uiMessages}
           initialVisibilityType={chat.visibility}
-          isReadonly={session?.user?.id !== chat.userId}
+          isReadonly={currentUserId !== chat.userId}
         />
         <DataStreamHandler />
       </>
