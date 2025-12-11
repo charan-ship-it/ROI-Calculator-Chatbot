@@ -107,9 +107,14 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
     isValidating,
     isLoading,
     mutate,
-  } = useSWRInfinite<ChatHistory>(getChatHistoryPaginationKey, fetcher, {
-    fallbackData: [],
-  });
+    error,
+  } = useSWRInfinite<ChatHistory>(
+    user ? getChatHistoryPaginationKey : null,
+    fetcher,
+    {
+      fallbackData: [],
+    }
+  );
 
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -187,6 +192,18 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
                 />
               </div>
             ))}
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
+
+  if (error) {
+    return (
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <div className="flex w-full flex-row items-center justify-center gap-2 px-2 text-destructive text-sm">
+            Failed to load chat history. Please refresh the page.
           </div>
         </SidebarGroupContent>
       </SidebarGroup>

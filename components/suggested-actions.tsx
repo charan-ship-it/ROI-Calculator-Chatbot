@@ -4,9 +4,9 @@ import type { UseChatHelpers } from "@ai-sdk/react";
 import { motion } from "framer-motion";
 import { memo, useMemo } from "react";
 import type { ChatMessage } from "@/lib/types";
+import type { BusinessFunction } from "./business-function-selector";
 import { Suggestion } from "./elements/suggestion";
 import type { VisibilityType } from "./visibility-selector";
-import type { BusinessFunction } from "./business-function-selector";
 
 type SuggestedActionsProps = {
   chatId: string;
@@ -28,7 +28,7 @@ const getSuggestedActions = (businessFunction?: BusinessFunction): string[] => {
       return [
         "Calculate ROI for Marketing automation and campaign management",
         "What's the ROI for AI-powered content creation and personalization?",
-        "Help me assess ROI for Marketing analytics and reporting automation",
+        "I would like to get a ROI and Savings for my Company with Al",
         "What's the ROI for automating lead scoring and segmentation?",
       ];
     case "Customer Service":
@@ -41,14 +41,18 @@ const getSuggestedActions = (businessFunction?: BusinessFunction): string[] => {
     default:
       return [
         "I want to calculate ROI for implementing AI automation",
-        "Help me assess ROI for automation initiatives in my organization",
+        "I would like to get a ROI and Savings for my Company with Al",
         "What's the ROI for implementing AI in my business?",
         "Calculate ROI for automation and efficiency improvements",
       ];
   }
 };
 
-function PureSuggestedActions({ chatId, sendMessage, businessFunction }: SuggestedActionsProps) {
+function PureSuggestedActions({
+  chatId,
+  sendMessage,
+  businessFunction,
+}: SuggestedActionsProps) {
   const suggestedActions = useMemo(
     () => getSuggestedActions(businessFunction),
     [businessFunction]
