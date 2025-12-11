@@ -159,7 +159,7 @@ export async function POST(request: Request) {
       process.env.N8N_WEBHOOK_ID || "0a7ad9c6-bec1-45ff-9c4a-0884f6725583";
 
     // Build webhook URL with businessFunction as path parameter
-    // Format: /webhook-test/{webhookId}/{businessFunction}
+    // Format: /webhook/{webhookId}/{businessFunction}
     const n8nWebhookUrl = `${n8nBaseUrl}/webhook-test/${n8nWebhookId}/${businessFunction}`;
 
     // Prepare request body for n8n
