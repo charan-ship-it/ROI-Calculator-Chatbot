@@ -33,9 +33,9 @@ export function useAutoResume({
       return;
     }
 
-    // Wait for the hook to be in idle state before attempting manual resume
+    // Wait for the hook to be in ready state before attempting manual resume
     // This ensures the transport is fully initialized
-    if (status !== "idle") {
+    if (status !== "ready") {
       return;
     }
 
