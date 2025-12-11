@@ -9,12 +9,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import {
-  CheckCircleFillIcon,
-  ChevronDownIcon,
-} from "./icons";
+import { CheckCircleFillIcon, ChevronDownIcon } from "./icons";
 
-export type BusinessFunction = "Sales" | "Marketing" | "Customer Service";
+export type BusinessFunction =
+  | "AI Accelerate"
+  | "Sales"
+  | "Marketing"
+  | "Customer Service";
 
 const businessFunctions: Array<{
   id: BusinessFunction;
@@ -22,6 +23,11 @@ const businessFunctions: Array<{
   description: string;
   icon?: ReactNode;
 }> = [
+  {
+    id: "AI Accelerate",
+    label: "AI Accelerate",
+    description: "General AI assistance and acceleration",
+  },
   {
     id: "Sales",
     label: "Sales",
@@ -50,7 +56,8 @@ export function BusinessFunctionSelector({
   const [open, setOpen] = useState(false);
 
   const selectedFunction = useMemo(
-    () => businessFunctions.find((func) => func.id === selectedBusinessFunction),
+    () =>
+      businessFunctions.find((func) => func.id === selectedBusinessFunction),
     [selectedBusinessFunction]
   );
 
@@ -102,4 +109,3 @@ export function BusinessFunctionSelector({
     </DropdownMenu>
   );
 }
-

@@ -1,12 +1,11 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import type { DataUIPart } from "ai";
+import { DefaultChatTransport } from "ai";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import { unstable_serialize } from "swr/infinite";
 import { ChatHeader } from "@/components/chat-header";
 import {
   AlertDialog,
@@ -27,13 +26,12 @@ import type { Attachment, ChatMessage, CustomUIDataTypes } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 import { Artifact } from "./artifact";
+import type { BusinessFunction } from "./business-function-selector";
 import { useDataStream } from "./data-stream-provider";
 import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
-import { getChatHistoryPaginationKey } from "./sidebar-history";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
-import type { BusinessFunction } from "./business-function-selector";
 
 export function Chat({
   id,
@@ -77,7 +75,8 @@ export function Chat({
   const [usage, setUsage] = useState<AppUsage | undefined>(initialLastContext);
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
-  const [businessFunction, setBusinessFunction] = useState<BusinessFunction>("Sales");
+  const [businessFunction, setBusinessFunction] =
+    useState<BusinessFunction>("AI Accelerate");
   const currentModelIdRef = useRef(currentModelId);
   const businessFunctionRef = useRef(businessFunction);
 
@@ -105,7 +104,11 @@ export function Chat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       fetch: fetchWithErrorHandlers,
-      prepareSendMessagesRequest(request: { id: string; messages: ChatMessage[]; body?: Record<string, unknown> }) {
+      prepareSendMessagesRequest(request: {
+        id: string;
+        messages: ChatMessage[];
+        body?: Record<string, unknown>;
+      }) {
         return {
           body: {
             id: request.id,
@@ -117,26 +120,34 @@ export function Chat({
           },
         };
       },
+      prepareReconnectToStreamRequest: ({ id: chatId }) => ({
+        api: `/api/chat/${chatId}/stream`,
+        fetch: fetchWithErrorHandlers,
+        credentials: "include",
+      }),
     }),
     onData: (dataPart: DataUIPart<CustomUIDataTypes>) => {
-      console.log('onData received:', dataPart.type, dataPart);
-      setDataStream((ds: DataUIPart<CustomUIDataTypes>[] | undefined) => (ds ? [...ds, dataPart] : [dataPart]));
+      console.log("onData received:", dataPart.type, dataPart);
+      setDataStream((ds: DataUIPart<CustomUIDataTypes>[] | undefined) =>
+        ds ? [...ds, dataPart] : [dataPart]
+      );
       if (dataPart.type === "data-usage") {
         setUsage(dataPart.data);
       }
     },
-    onFinish: async () => {
-      console.log('onFinish called - stream completed');
-      
+    onFinish: () => {
+      console.log("onFinish called - stream completed");
+
       // Update URL to /chat/{id} if we're still on root path
       // This happens after chat is saved to DB, preventing 404 on reload
-      if (window.location.pathname === '/') {
+      if (window.location.pathname === "/") {
         window.history.pushState({}, "", `/chat/${id}`);
       }
-      
+
       // Invalidate SWR cache to refresh chat history in sidebar
       mutate(
-        (key: string) => typeof key === "string" && key.startsWith("/api/history")
+        (key: string) =>
+          typeof key === "string" && key.startsWith("/api/history")
       );
     },
     onError: (error: unknown) => {
@@ -157,14 +168,16 @@ export function Chat({
   });
 
   // DEBUG: Log messages from useChat
-  console.log('=== CHAT COMPONENT (useChat) DEBUG ===');
-  console.log('Chat ID:', id);
-  console.log('Initial messages count:', initialMessages.length);
-  console.log('Current messages count:', messages.length);
-  console.log('Status:', status);
-  console.log('Messages:', messages.map(m => ({ id: m.id, role: m.role })));
-  console.log('======================================');
-
+  console.log("=== CHAT COMPONENT (useChat) DEBUG ===");
+  console.log("Chat ID:", id);
+  console.log("Initial messages count:", initialMessages.length);
+  console.log("Current messages count:", messages.length);
+  console.log("Status:", status);
+  console.log(
+    "Messages:",
+    messages.map((m) => ({ id: m.id, role: m.role }))
+  );
+  console.log("======================================");
 
   const searchParams = useSearchParams();
   const query = searchParams.get("query");
@@ -197,6 +210,7 @@ export function Chat({
     messages,
     resumeStream,
     setMessages,
+    status,
   });
 
   return (
@@ -226,6 +240,7 @@ export function Chat({
           {!isReadonly && (
             <MultimodalInput
               attachments={attachments}
+              businessFunction={businessFunction}
               chatId={id}
               input={input}
               messages={messages}
@@ -239,7 +254,6 @@ export function Chat({
               status={status}
               stop={stop}
               usage={usage}
-              businessFunction={businessFunction}
             />
           )}
         </div>

@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       id,
       message,
       selectedVisibilityType,
-      businessFunction = "Sales",
+      businessFunction = "AI Accelerate",
     } = requestBody;
 
     console.log("=== API CHAT POST DEBUG ===");
@@ -157,16 +157,34 @@ export async function POST(request: Request) {
       process.env.N8N_BASE_URL || "https://n8n.srv838270.hstgr.cloud";
     const n8nWebhookId =
       process.env.N8N_WEBHOOK_ID || "0a7ad9c6-bec1-45ff-9c4a-0884f6725583";
-    const n8nWebhookUrl = `${n8nBaseUrl}/webhook/${n8nWebhookId}/${businessFunction}`;
+
+    // Build webhook URL with businessFunction as path parameter
+    // Format: /webhook-test/{webhookId}/{businessFunction}
+    const n8nWebhookUrl = `${n8nBaseUrl}/webhook-test/${n8nWebhookId}/${businessFunction}`;
 
     // Prepare request body for n8n
     // Send data directly without wrapping in "body" key
-    const n8nRequestBody = {
+    // Note: promptTemplate is NOT sent as it's already configured in n8n's system prompt
+    const n8nRequestBody: {
+      message: string;
+      sessionId: string;
+      userId: string;
+      functions?: string[];
+    } = {
       message: userMessageText,
       sessionId: id, // Use chat ID as session ID
       userId: currentUserId,
-      functions: [businessFunction],
     };
+
+    // Only include functions array if businessFunction is Sales, Marketing, or Customer Service
+    const shouldIncludeBusinessFunction =
+      businessFunction === "Sales" ||
+      businessFunction === "Marketing" ||
+      businessFunction === "Customer Service";
+
+    if (shouldIncludeBusinessFunction) {
+      n8nRequestBody.functions = [businessFunction];
+    }
 
     // Call n8n webhook
     let n8nResponse: Response;

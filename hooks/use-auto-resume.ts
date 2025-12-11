@@ -11,6 +11,7 @@ export type UseAutoResumeParams = {
   messages: ChatMessage[];
   resumeStream: UseChatHelpers<ChatMessage>["resumeStream"];
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
+  status: UseChatHelpers<ChatMessage>["status"];
 };
 
 export function useAutoResume({
@@ -19,6 +20,7 @@ export function useAutoResume({
   messages,
   resumeStream,
   setMessages,
+  status,
 }: UseAutoResumeParams) {
   const { dataStream } = useDataStream();
 
@@ -27,15 +29,34 @@ export function useAutoResume({
       return;
     }
 
+    if (typeof resumeStream !== "function") {
+      return;
+    }
+
+    // Wait for the hook to be in idle state before attempting manual resume
+    // This ensures the transport is fully initialized
+    if (status !== "idle") {
+      return;
+    }
+
     const mostRecentMessage = initialMessages.at(-1);
 
     if (mostRecentMessage?.role === "user") {
-      resumeStream();
+      // Add a small delay to ensure transport is ready
+      const timeoutId = setTimeout(() => {
+        try {
+          resumeStream();
+        } catch (error) {
+          console.error("Error resuming stream:", error);
+        }
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
     }
 
     // we intentionally run this once
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoResume, initialMessages.at, resumeStream]);
+  }, [autoResume, initialMessages.at, resumeStream, status]);
 
   useEffect(() => {
     if (!dataStream) {
