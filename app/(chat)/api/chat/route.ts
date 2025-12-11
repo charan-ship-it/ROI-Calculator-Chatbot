@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       // If chat exists and belongs to a guest user, reuse that guest user
       if (chat) {
         const chatOwner = await getUserById(chat.userId);
-        if (chatOwner?.email.startsWith("guest-")) {
+        if (chatOwner?.email?.startsWith("guest-")) {
           // Chat belongs to a guest user, reuse that user ID
           currentUserId = chat.userId;
         } else {
