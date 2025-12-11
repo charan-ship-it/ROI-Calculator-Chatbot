@@ -6,6 +6,7 @@ export function useScrollToBottom() {
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const isUserScrollingRef = useRef(false);
+  const isStreamingRef = useRef(false); // Track if AI is actively streaming
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -17,7 +18,8 @@ export function useScrollToBottom() {
       return true;
     }
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    return scrollTop + clientHeight >= scrollHeight - 100;
+    // Reduced from 100px to 30px for tighter control
+    return scrollTop + clientHeight >= scrollHeight - 30;
   }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
@@ -47,14 +49,33 @@ export function useScrollToBottom() {
       isAtBottomRef.current = atBottom;
 
       // Reset user scrolling flag after scroll ends
+      // Increased to 1000ms (1 second) to give much more time for user interaction
       scrollTimeout = setTimeout(() => {
         isUserScrollingRef.current = false;
-      }, 150);
+      }, 1000);
+    };
+
+    // Also detect wheel and touch events to immediately mark as user scrolling
+    const handleUserInteraction = () => {
+      isUserScrollingRef.current = true;
+      clearTimeout(scrollTimeout);
+      
+      // Keep the flag for longer after direct interaction
+      scrollTimeout = setTimeout(() => {
+        isUserScrollingRef.current = false;
+      }, 2000); // 2 seconds after wheel/touch
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
+    container.addEventListener("wheel", handleUserInteraction, { passive: true });
+    container.addEventListener("touchstart", handleUserInteraction, { passive: true });
+    container.addEventListener("touchmove", handleUserInteraction, { passive: true });
+    
     return () => {
       container.removeEventListener("scroll", handleScroll);
+      container.removeEventListener("wheel", handleUserInteraction);
+      container.removeEventListener("touchstart", handleUserInteraction);
+      container.removeEventListener("touchmove", handleUserInteraction);
       clearTimeout(scrollTimeout);
     };
   }, [checkIfAtBottom]);
@@ -67,17 +88,25 @@ export function useScrollToBottom() {
       return;
     }
 
+    let scrollDebounceTimeout: ReturnType<typeof setTimeout>;
+
     const scrollIfNeeded = () => {
-      // Only auto-scroll if user was at bottom and isn't actively scrolling
-      if (isAtBottomRef.current && !isUserScrollingRef.current && endElement) {
-        requestAnimationFrame(() => {
-          if (endElement) {
-            // Use scrollIntoView on the end element for reliable scrolling
-            endElement.scrollIntoView({ behavior: "instant", block: "end" });
-            setIsAtBottom(true);
-            isAtBottomRef.current = true;
-          }
-        });
+      // CRITICAL: Only auto-scroll if AI is actively streaming
+      // Once streaming stops, user has full scroll control
+      if (isStreamingRef.current && isAtBottomRef.current && !isUserScrollingRef.current && endElement) {
+        // Debounce the scroll to prevent excessive scrolling
+        clearTimeout(scrollDebounceTimeout);
+        scrollDebounceTimeout = setTimeout(() => {
+          requestAnimationFrame(() => {
+            // Double-check conditions before scrolling
+            if (endElement && isStreamingRef.current && isAtBottomRef.current && !isUserScrollingRef.current) {
+              // Use scrollIntoView on the end element for reliable scrolling
+              endElement.scrollIntoView({ behavior: "instant", block: "end" });
+              setIsAtBottom(true);
+              isAtBottomRef.current = true;
+            }
+          });
+        }, 100);
       }
     };
 
@@ -90,7 +119,7 @@ export function useScrollToBottom() {
       attributes: true,
     });
 
-    // Watch for size changes - observe container and all descendants
+    // Watch for size changes - observe container and end element only
     const resizeObserver = new ResizeObserver(scrollIfNeeded);
     resizeObserver.observe(container);
     
@@ -99,35 +128,10 @@ export function useScrollToBottom() {
       resizeObserver.observe(endElement);
     }
 
-    // Use a more reliable method to observe all content changes
-    const observeAll = () => {
-      if (container) {
-        const walker = document.createTreeWalker(
-          container,
-          NodeFilter.SHOW_ELEMENT,
-          null
-        );
-        let node;
-        while ((node = walker.nextNode())) {
-          if (node instanceof Element) {
-            resizeObserver.observe(node);
-          }
-        }
-      }
-    };
-    
-    // Initial observation
-    observeAll();
-    
-    // Re-observe when content changes
-    mutationObserver.observe(container, {
-      childList: true,
-      subtree: true,
-    });
-
     return () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
+      clearTimeout(scrollDebounceTimeout);
     };
   }, []);
 
@@ -141,6 +145,11 @@ export function useScrollToBottom() {
     isAtBottomRef.current = false;
   }
 
+  // Method to update streaming status from parent component
+  const setIsStreaming = useCallback((streaming: boolean) => {
+    isStreamingRef.current = streaming;
+  }, []);
+
   return {
     containerRef,
     endRef,
@@ -148,5 +157,6 @@ export function useScrollToBottom() {
     scrollToBottom,
     onViewportEnter,
     onViewportLeave,
+    setIsStreaming, // Export the new method
   };
 }

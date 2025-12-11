@@ -15,6 +15,7 @@ export function useMessages({
     scrollToBottom,
     onViewportEnter,
     onViewportLeave,
+    setIsStreaming,
   } = useScrollToBottom();
 
   const [hasSentMessage, setHasSentMessage] = useState(false);
@@ -24,6 +25,11 @@ export function useMessages({
       setHasSentMessage(true);
     }
   }, [status]);
+
+  // Update streaming status whenever status changes
+  useEffect(() => {
+    setIsStreaming(status === "streaming");
+  }, [status, setIsStreaming]);
 
   return {
     containerRef,

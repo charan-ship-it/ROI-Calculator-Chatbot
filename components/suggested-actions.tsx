@@ -70,7 +70,7 @@ function PureSuggestedActions({ chatId, sendMessage, businessFunction }: Suggest
           <Suggestion
             className="h-auto w-full whitespace-normal p-3 text-left"
             onClick={(suggestion) => {
-              window.history.pushState({}, "", `/chat/${chatId}`);
+              // Don't update URL here - let it happen after message is sent
               sendMessage({
                 role: "user",
                 parts: [{ type: "text", text: suggestion }],

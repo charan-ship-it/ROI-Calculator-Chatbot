@@ -74,6 +74,15 @@ async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
 
   const uiMessages = convertToUIMessages(messagesFromDb);
 
+  // DEBUG: Log what we loaded from database
+  console.log('=== PAGE LOAD DEBUG ===');
+  console.log('Chat ID:', id);
+  console.log('Messages from DB:', messagesFromDb.length);
+  console.log('DB Messages:', messagesFromDb.map(m => ({ id: m.id, role: m.role, parts: m.parts })));
+  console.log('Converted UI Messages:', uiMessages.length);
+  console.log('UI Messages:', uiMessages.map(m => ({ id: m.id, role: m.role, parts: m.parts })));
+  console.log('=======================');
+
   const cookieStore = await cookies();
   const chatModelFromCookie = cookieStore.get("chat-model");
 

@@ -50,6 +50,13 @@ const PurePreviewMessage = ({
 
   useDataStream();
 
+  // DEBUG: Log individual message rendering
+  console.log(`Rendering message ${message.id}:`, {
+    role: message.role,
+    partsCount: message.parts.length,
+    parts: message.parts.map(p => ({ type: p.type, hasText: 'text' in p && !!p.text }))
+  });
+
   return (
     <div
       className="group/message fade-in w-full animate-in duration-200"

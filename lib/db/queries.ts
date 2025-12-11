@@ -252,6 +252,21 @@ export async function getChatById({ id }: { id: string }) {
   }
 }
 
+export async function getMostRecentChatByUserId({ userId }: { userId: string }) {
+  try {
+    const [mostRecentChat] = await db
+      .select()
+      .from(chat)
+      .where(eq(chat.userId, userId))
+      .orderBy(desc(chat.createdAt))
+      .limit(1);
+    
+    return mostRecentChat ?? null;
+  } catch (_error) {
+    throw new ChatSDKError("bad_request:database", "Failed to get most recent chat");
+  }
+}
+
 export async function saveMessages({ messages }: { messages: DBMessage[] }) {
   try {
     return await db.insert(message).values(messages);

@@ -63,6 +63,11 @@ export async function POST(request: Request) {
       businessFunction = "Sales",
     } = requestBody;
 
+    console.log("=== API CHAT POST DEBUG ===");
+    console.log("Chat ID:", id);
+    console.log("Message:", message);
+    console.log("===========================");
+
     const session = await auth();
 
     if (!session?.user) {
@@ -155,13 +160,12 @@ export async function POST(request: Request) {
     const n8nWebhookUrl = `${n8nBaseUrl}/webhook/${n8nWebhookId}/${businessFunction}`;
 
     // Prepare request body for n8n
+    // Send data directly without wrapping in "body" key
     const n8nRequestBody = {
-      body: {
-        message: userMessageText,
-        sessionId: id, // Use chat ID as session ID
-        userId: currentUserId,
-        functions: [businessFunction],
-      },
+      message: userMessageText,
+      sessionId: id, // Use chat ID as session ID
+      userId: currentUserId,
+      functions: [businessFunction],
     };
 
     // Call n8n webhook
@@ -218,7 +222,7 @@ export async function POST(request: Request) {
     console.log("n8n parsed data:", JSON.stringify(n8nData, null, 2));
 
     // Handle n8n response format:
-    // - Array format: [{ success: true, response: "..." }]
+    // - Array format: [{ success: true, response: "...", sessionId: "...", userId: "..." }]
     // - Object with json wrapper: { json: { success: true, response: "..." } }
     // - Direct object: { success: true, response: "..." }
     let responseData: any;
@@ -241,12 +245,41 @@ export async function POST(request: Request) {
       return new ChatSDKError("offline:chat").toResponse();
     }
 
+    // Extract sessionId and userId from n8n response
+    const n8nSessionId = responseData.sessionId;
+    const n8nUserId = responseData.userId;
+
+    console.log("=== N8N RESPONSE IDS DEBUG ===");
+    console.log("Expected Chat ID:", id);
+    console.log("N8N sessionId:", n8nSessionId);
+    console.log("IDs match:", id === n8nSessionId);
+    console.log("Expected User ID:", currentUserId);
+    console.log("N8N userId:", n8nUserId);
+    console.log("User IDs match:", currentUserId === n8nUserId);
+    console.log("=============================");
+
+    // Validate IDs if they exist in response
+    if (n8nSessionId && n8nSessionId !== id) {
+      console.warn(
+        `WARNING: n8n returned different sessionId. Expected: ${id}, Got: ${n8nSessionId}`
+      );
+      // Continue anyway - our chat ID is authoritative
+    }
+
+    if (n8nUserId && n8nUserId !== currentUserId) {
+      console.warn(
+        `WARNING: n8n returned different userId. Expected: ${currentUserId}, Got: ${n8nUserId}`
+      );
+      // Continue anyway - our user ID is authoritative
+    }
+
     const assistantResponse = responseData.response;
     console.log("Successfully extracted response from n8n");
 
-    // Save assistant message to database first
+    // Generate ID for assistant message
     const assistantMessageId = generateUUID();
 
+    // Save BOTH messages to database first
     try {
       await saveMessages({
         messages: [
@@ -260,34 +293,30 @@ export async function POST(request: Request) {
           },
         ],
       });
+      console.log("Assistant message saved to database");
     } catch (error) {
       console.error("Error saving assistant message to database:", error);
-      // Continue even if save fails - we'll still stream the message
     }
 
-    // Create a stream that appends the complete message
-    // Note: We save first, then append, because text-delta doesn't work with UIMessageStreamWriter
+    // Create a simple stream that just sends the assistant message
     const stream = createUIMessageStream<ChatMessage>({
       execute: ({ writer: dataStream }) => {
-        // Append the complete message using appendMessage
-        // This is the proper way to add a complete message to the stream
+        // Send assistant message with transient true AND no metadata
+        // This should append to the existing user message
         dataStream.write({
           type: "data-appendMessage",
           data: JSON.stringify({
             id: assistantMessageId,
             role: "assistant",
             parts: [{ type: "text", text: assistantResponse }],
-            metadata: {
-              createdAt: new Date().toISOString(),
-            },
+            // NO metadata/createdAt - this is key!
           }),
-          transient: false,
+          transient: true,
         });
       },
       generateId: generateUUID,
       onFinish: () => {
-        // Message already saved above
-        console.log("Message stream finished");
+        console.log("Stream finished");
       },
       onError: (error) => {
         console.error("Error in message stream:", error);

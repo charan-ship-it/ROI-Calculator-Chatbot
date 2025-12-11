@@ -115,7 +115,8 @@ function PureMultimodalInput({
   };
 
   const submitForm = useCallback(() => {
-    window.history.pushState({}, "", `/chat/${chatId}`);
+    // Don't update URL here - let it happen after message is sent
+    // This prevents race condition where URL changes before chat exists in DB
 
     sendMessage({
       role: "user",

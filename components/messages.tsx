@@ -43,6 +43,20 @@ function PureMessages({
 
   useDataStream();
 
+  // DEBUG: Log messages array to verify what's being rendered
+  console.log('=== MESSAGES COMPONENT DEBUG ===');
+  console.log('Total messages:', messages.length);
+  console.log('Status:', status);
+  messages.forEach((msg, idx) => {
+    console.log(`Message ${idx}:`, {
+      id: msg.id,
+      role: msg.role,
+      parts: msg.parts,
+      createdAt: msg.metadata?.createdAt
+    });
+  });
+  console.log('================================');
+
   return (
     <div className="relative flex-1 min-h-0 overflow-hidden">
       <div
@@ -101,10 +115,9 @@ function PureMessages({
 }
 
 export const Messages = memo(PureMessages, (prevProps, nextProps) => {
-  if (prevProps.isArtifactVisible && nextProps.isArtifactVisible) {
-    return true;
-  }
-
+  // Don't skip re-render just because artifact is visible
+  // The artifact visibility should not prevent message updates
+  
   if (prevProps.status !== nextProps.status) {
     return false;
   }
@@ -121,5 +134,5 @@ export const Messages = memo(PureMessages, (prevProps, nextProps) => {
     return false;
   }
 
-  return false;
+  return true; // Only skip re-render if nothing changed
 });

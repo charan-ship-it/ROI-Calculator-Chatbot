@@ -119,13 +119,25 @@ export function Chat({
       },
     }),
     onData: (dataPart: DataUIPart<CustomUIDataTypes>) => {
+      console.log('onData received:', dataPart.type, dataPart);
       setDataStream((ds: DataUIPart<CustomUIDataTypes>[] | undefined) => (ds ? [...ds, dataPart] : [dataPart]));
       if (dataPart.type === "data-usage") {
         setUsage(dataPart.data);
       }
     },
-    onFinish: () => {
-      mutate(unstable_serialize(getChatHistoryPaginationKey));
+    onFinish: async () => {
+      console.log('onFinish called - stream completed');
+      
+      // Update URL to /chat/{id} if we're still on root path
+      // This happens after chat is saved to DB, preventing 404 on reload
+      if (window.location.pathname === '/') {
+        window.history.pushState({}, "", `/chat/${id}`);
+      }
+      
+      // Invalidate SWR cache to refresh chat history in sidebar
+      mutate(
+        (key: string) => typeof key === "string" && key.startsWith("/api/history")
+      );
     },
     onError: (error: unknown) => {
       if (error instanceof ChatSDKError) {
@@ -143,6 +155,16 @@ export function Chat({
       }
     },
   });
+
+  // DEBUG: Log messages from useChat
+  console.log('=== CHAT COMPONENT (useChat) DEBUG ===');
+  console.log('Chat ID:', id);
+  console.log('Initial messages count:', initialMessages.length);
+  console.log('Current messages count:', messages.length);
+  console.log('Status:', status);
+  console.log('Messages:', messages.map(m => ({ id: m.id, role: m.role })));
+  console.log('======================================');
+
 
   const searchParams = useSearchParams();
   const query = searchParams.get("query");
@@ -172,6 +194,7 @@ export function Chat({
   useAutoResume({
     autoResume,
     initialMessages,
+    messages,
     resumeStream,
     setMessages,
   });

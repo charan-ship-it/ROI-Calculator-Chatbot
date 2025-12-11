@@ -8,6 +8,7 @@ import type { ChatMessage } from "@/lib/types";
 export type UseAutoResumeParams = {
   autoResume: boolean;
   initialMessages: ChatMessage[];
+  messages: ChatMessage[];
   resumeStream: UseChatHelpers<ChatMessage>["resumeStream"];
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
 };
@@ -15,6 +16,7 @@ export type UseAutoResumeParams = {
 export function useAutoResume({
   autoResume,
   initialMessages,
+  messages,
   resumeStream,
   setMessages,
 }: UseAutoResumeParams) {
@@ -47,7 +49,9 @@ export function useAutoResume({
 
     if (dataPart.type === "data-appendMessage") {
       const message = JSON.parse(dataPart.data);
-      setMessages([...initialMessages, message]);
+      // Use current messages state instead of initialMessages to properly append
+      // This fixes the bug where data-appendMessage replaces instead of appends
+      setMessages([...messages, message]);
     }
-  }, [dataStream, initialMessages, setMessages]);
+  }, [dataStream, messages, setMessages]);
 }
