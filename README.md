@@ -153,6 +153,20 @@ And should return:
 
 - [Getting Started Guide](./GETTING_STARTED.md) - Detailed setup instructions
 - [Codebase Overview](./CODEBASE_OVERVIEW.md) - Architecture and implementation details
+- [Scroll Behavior](./SCROLL_BEHAVIOR.md) - Auto-scroll feature documentation
+- [Troubleshooting](./TROUBLESHOOTING.md) - Common issues and solutions
+
+## Key Features Explained
+
+### Auto-Scroll Behavior
+
+The chat interface includes intelligent auto-scroll that:
+- ✅ Automatically follows AI responses during thinking and streaming
+- ✅ Respects user scroll position when manually scrolled
+- ✅ Provides a scroll-to-bottom button when not at bottom
+- ✅ Disables auto-scroll after AI finishes responding
+
+For technical details, see [SCROLL_BEHAVIOR.md](./SCROLL_BEHAVIOR.md).
 
 ## Deployment
 

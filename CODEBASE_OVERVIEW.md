@@ -314,6 +314,106 @@ The code automatically handles both response formats.
 
 ---
 
+### 13. Auto-Scroll Behavior (`hooks/use-scroll-to-bottom.tsx`, `hooks/use-messages.tsx`)
+
+**Overview**:
+The chat interface implements intelligent auto-scroll behavior that automatically follows AI responses while preserving user control.
+
+**Components**:
+
+1. **`useScrollToBottom` Hook** (`hooks/use-scroll-to-bottom.tsx`)
+   - Core scroll management logic
+   - Tracks user scroll position and intent
+   - Manages auto-scroll during AI activity
+
+2. **`useMessages` Hook** (`hooks/use-messages.tsx`)
+   - Integrates scroll behavior with chat status
+   - Connects AI streaming state to auto-scroll
+
+**Behavior Rules**:
+
+**Auto-Scroll Triggers**:
+- Auto-scroll is **ENABLED** when:
+  1. AI is actively responding (`status === "streaming"`)
+  2. AI is thinking/processing (`status === "submitted"`)
+  3. User is at the bottom of the scroll container (within 30px)
+  4. User has NOT manually scrolled recently
+
+**User Control**:
+- Auto-scroll is **DISABLED** when:
+  1. User manually scrolls up or down
+  2. User uses mouse wheel or trackpad
+  3. User touches/swipes on mobile
+  4. AI finishes responding (`status !== "streaming" && status !== "submitted"`)
+
+**Implementation Details**:
+
+**Scroll Detection**:
+```typescript
+// User scroll is detected via:
+- 'scroll' event: Updates isAtBottom state
+- 'wheel' event: Immediate user interaction detection (2s cooldown)
+- 'touchstart'/'touchmove': Mobile gesture detection (2s cooldown)
+
+// User scroll flag persists for:
+- 1 second after scroll event
+- 2 seconds after wheel/touch events
+```
+
+**Auto-Scroll Logic**:
+```typescript
+// Auto-scroll only when ALL conditions are met:
+isStreamingRef.current === true  // AI is active
+&& isAtBottomRef.current === true  // User at bottom
+&& !isUserScrollingRef.current  // User hasn't scrolled
+&& endElement  // DOM element exists
+
+// Streaming status is set to true when:
+status === "streaming" || status === "submitted"
+```
+
+**Performance Optimizations**:
+1. **Debouncing**: 100ms debounce on scroll operations
+2. **RAF Batching**: Uses `requestAnimationFrame` for smooth scrolling
+3. **Observer Pattern**:
+   - `MutationObserver`: Watches for DOM changes (new messages, content updates)
+   - `ResizeObserver`: Watches for container/element size changes
+4. **Instant Scrolling**: Uses `behavior: "instant"` during streaming for immediate feedback
+5. **Smooth Scrolling**: Manual scroll-to-bottom button uses `behavior: "smooth"`
+
+**Scroll Button**:
+- Appears when user scrolls up from bottom
+- Click to manually scroll to bottom with smooth animation
+- Automatically hides when at bottom
+
+**Edge Cases Handled**:
+1. **Rapid Message Updates**: Debouncing prevents scroll jitter
+2. **Long Responses**: Continuous scrolling during streaming
+3. **User Interrupt**: Immediate stop of auto-scroll on user action
+4. **Mobile Touch**: Touch events disable auto-scroll for 2 seconds
+5. **Browser Navigation**: Preserves scroll position on forward/back
+
+**Key State Variables**:
+```typescript
+isAtBottom: boolean  // Current scroll position
+isAtBottomRef: React.MutableRefObject<boolean>  // Ref for immediate access
+isUserScrollingRef: React.MutableRefObject<boolean>  // User activity flag
+isStreamingRef: React.MutableRefObject<boolean>  // AI streaming status
+```
+
+**Usage in Components**:
+```typescript
+// In Messages component:
+const { containerRef, endRef, isAtBottom, scrollToBottom } = useMessages({ status });
+
+// containerRef: Attach to scrollable container
+// endRef: Attach to end-of-messages element
+// isAtBottom: Show/hide scroll button
+// scrollToBottom: Manual scroll function
+```
+
+---
+
 ## Data Flow
 
 ### Sending a Message:
@@ -327,8 +427,9 @@ The code automatically handles both response formats.
 7. **n8n Webhook Call** → External service
 8. **Receive Response** → From n8n
 9. **Stream Response** → Client via SSE
-10. **Save Assistant Message** → Database on completion
-11. **Update UI** → Display messages
+10. **Auto-Scroll Triggered** → Messages component scrolls to bottom (if user at bottom)
+11. **Save Assistant Message** → Database on completion
+12. **Update UI** → Display messages
 
 ### Loading a Chat:
 

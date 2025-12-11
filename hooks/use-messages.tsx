@@ -27,8 +27,10 @@ export function useMessages({
   }, [status]);
 
   // Update streaming status whenever status changes
+  // Enable auto-scroll when AI is thinking ("submitted") or responding ("streaming")
   useEffect(() => {
-    setIsStreaming(status === "streaming");
+    const isAIActive = status === "streaming" || status === "submitted";
+    setIsStreaming(isAIActive);
   }, [status, setIsStreaming]);
 
   return {
