@@ -54,7 +54,10 @@ const PurePreviewMessage = ({
   console.log(`Rendering message ${message.id}:`, {
     role: message.role,
     partsCount: message.parts.length,
-    parts: message.parts.map(p => ({ type: p.type, hasText: 'text' in p && !!p.text }))
+    parts: message.parts.map((p) => ({
+      type: p.type,
+      hasText: "text" in p && !!p.text,
+    })),
   });
 
   return (
@@ -70,8 +73,12 @@ const PurePreviewMessage = ({
         })}
       >
         {message.role === "assistant" && (
-          <div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-border overflow-hidden">
-            <img src="/images/joy-avatar.png" alt="Joy - ROI Assistant" className="size-full object-cover" />
+          <div className="-mt-1 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border">
+            <img
+              alt="Joy - ROI Assistant"
+              className="size-full object-cover"
+              src="/images/joy-avatar.png"
+            />
           </div>
         )}
 
@@ -128,9 +135,9 @@ const PurePreviewMessage = ({
                   <div key={key}>
                     <MessageContent
                       className={cn({
-                        "w-fit break-words rounded-2xl px-3 py-2 text-right text-white":
+                        "w-fit break-words rounded-2xl px-3 py-2 text-left text-white":
                           message.role === "user",
-                        "bg-transparent px-0 py-0 text-left":
+                        "bg-transparent px-4 py-3 text-left":
                           message.role === "assistant",
                       })}
                       data-testid="message-content"
@@ -319,8 +326,12 @@ export const ThinkingMessage = () => {
       data-testid="message-assistant-loading"
     >
       <div className="flex items-start justify-start gap-3">
-        <div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-border overflow-hidden">
-          <img src="/images/joy-avatar.png" alt="Joy - Thinking" className="size-full object-cover" />
+        <div className="-mt-1 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border">
+          <img
+            alt="Joy - Thinking"
+            className="size-full object-cover"
+            src="/images/joy-avatar.png"
+          />
         </div>
 
         <div className="flex w-full flex-col gap-2 md:gap-4">

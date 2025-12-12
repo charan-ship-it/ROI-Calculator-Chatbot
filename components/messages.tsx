@@ -44,27 +44,27 @@ function PureMessages({
   useDataStream();
 
   // DEBUG: Log messages array to verify what's being rendered
-  console.log('=== MESSAGES COMPONENT DEBUG ===');
-  console.log('Total messages:', messages.length);
-  console.log('Status:', status);
+  console.log("=== MESSAGES COMPONENT DEBUG ===");
+  console.log("Total messages:", messages.length);
+  console.log("Status:", status);
   messages.forEach((msg, idx) => {
     console.log(`Message ${idx}:`, {
       id: msg.id,
       role: msg.role,
       parts: msg.parts,
-      createdAt: msg.metadata?.createdAt
+      createdAt: msg.metadata?.createdAt,
     });
   });
-  console.log('================================');
+  console.log("================================");
 
   return (
-    <div className="relative flex-1 min-h-0 overflow-hidden">
+    <div className="relative min-h-0 flex-1 overflow-hidden">
       <div
-        className="h-full w-full overflow-y-auto touch-pan-y overscroll-contain"
+        className="h-full w-full touch-pan-y overflow-y-auto overscroll-contain"
         ref={messagesContainerRef}
         style={{ WebkitOverflowScrolling: "touch" }}
       >
-        <div className="mx-auto flex min-w-0 max-w-4xl flex-col gap-4 px-2 py-4 md:gap-6 md:px-4 pb-8">
+        <div className="mx-auto flex min-w-0 max-w-4xl flex-col gap-4 px-2 py-4 pb-8 md:gap-6 md:px-4">
           {messages.length === 0 && <Greeting />}
 
           {messages.map((message, index) => (
@@ -89,7 +89,11 @@ function PureMessages({
             />
           ))}
 
-          {status === "submitted" && <ThinkingMessage />}
+          {/* Only show thinking message if status is submitted AND there's no assistant message yet */}
+          {status === "submitted" &&
+            !messages.some((m) => m.role === "assistant") && (
+              <ThinkingMessage />
+            )}
 
           <div
             className="min-h-[24px] min-w-[24px] shrink-0"
@@ -117,7 +121,7 @@ function PureMessages({
 export const Messages = memo(PureMessages, (prevProps, nextProps) => {
   // Don't skip re-render just because artifact is visible
   // The artifact visibility should not prevent message updates
-  
+
   if (prevProps.status !== nextProps.status) {
     return false;
   }

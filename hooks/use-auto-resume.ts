@@ -70,9 +70,20 @@ export function useAutoResume({
 
     if (dataPart.type === "data-appendMessage") {
       const message = JSON.parse(dataPart.data);
-      // Use current messages state instead of initialMessages to properly append
-      // This fixes the bug where data-appendMessage replaces instead of appends
-      setMessages([...messages, message]);
+      // Check if message with this ID already exists
+      const existingMessageIndex = messages.findIndex(
+        (m) => m.id === message.id
+      );
+
+      if (existingMessageIndex >= 0) {
+        // Update existing message instead of appending
+        const updatedMessages = [...messages];
+        updatedMessages[existingMessageIndex] = message;
+        setMessages(updatedMessages);
+      } else {
+        // Only append if message doesn't exist
+        setMessages([...messages, message]);
+      }
     }
   }, [dataStream, messages, setMessages]);
 }

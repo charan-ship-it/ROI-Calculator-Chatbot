@@ -6,10 +6,12 @@ This guide explains how to configure your Vercel deployment to send chat message
 
 Based on your n8n setup, your webhook URL format is:
 ```
-https://n8n.srv838270.hstgr.cloud/webhook/0a7ad9c6-bec1-45ff-9c4a-0884f6725583/{businessFunction}
+https://n8n.srv734188.hstgr.cloud/webhook/34f19691-dbbb-43e5-be8a-f4b22f20458e/{businessFunction}
 ```
 
 Where `{businessFunction}` is one of: `Sales`, `Marketing`, or `Customer Service`
+
+**Note:** Streaming is enabled on n8n, so responses will be streamed in real-time.
 
 ## How It Works
 
@@ -29,16 +31,22 @@ When a user sends a chat message:
 4. A POST request is sent to n8n with this payload:
    ```json
    {
-     "body": {
-       "message": "user message text",
-       "sessionId": "chat-id",
-       "userId": "user-id",
-       "functions": ["Sales"]
-     }
+     "message": "user message text",
+     "sessionId": "chat-id",
+     "userId": "user-id",
+     "functions": ["Sales"]
    }
    ```
 
-5. The system expects a response from n8n (supports both formats):
+5. The system expects a response from n8n. With streaming enabled, responses can be:
+   
+   **Streaming Response (Real-time):**
+   - Server-Sent Events (SSE) format: `text/event-stream`
+   - JSON Lines format: `application/stream+json`
+   - Plain text streaming
+   - Chunks are processed and forwarded to the client as they arrive
+   
+   **Non-Streaming Response (Backward Compatible):**
    
    **Format 1 - Wrapped in `json` property (n8n default):**
    ```json
@@ -82,11 +90,11 @@ Add the following environment variables for **Production**, **Preview**, and **D
 #### Required Variables:
 
 1. **N8N_BASE_URL**
-   - **Value**: `https://n8n.srv838270.hstgr.cloud`
+   - **Value**: `https://n8n.srv734188.hstgr.cloud`
    - **Description**: Base URL of your n8n instance
 
 2. **N8N_WEBHOOK_ID**
-   - **Value**: `0a7ad9c6-bec1-45ff-9c4a-0884f6725583`
+   - **Value**: `34f19691-dbbb-43e5-be8a-f4b22f20458e`
    - **Description**: Your n8n webhook identifier
 
 3. **POSTGRES_URL**
@@ -125,7 +133,8 @@ You can test if the webhook is accessible from Vercel by:
 
 When everything is configured correctly:
 
-- ✅ Chat messages are sent to: `https://n8n.srv838270.hstgr.cloud/webhook/0a7ad9c6-bec1-45ff-9c4a-0884f6725583/Sales` (or Marketing/Customer Service)
+- ✅ Chat messages are sent to: `https://n8n.srv734188.hstgr.cloud/webhook/34f19691-dbbb-43e5-be8a-f4b22f20458e/Sales` (or Marketing/Customer Service)
+- ✅ Responses are streamed in real-time from n8n
 - ✅ n8n receives the request with the message, sessionId, userId, and functions array
 - ✅ n8n returns a response with `success: true` and `response: "..."` 
 - ✅ The chatbot displays the streaming response to the user
@@ -137,8 +146,8 @@ When everything is configured correctly:
 If you see this error, it means the webhook call failed. Check:
 
 1. **Environment Variables:**
-   - Verify `N8N_BASE_URL` is set correctly (should be `https://n8n.srv838270.hstgr.cloud`)
-   - Verify `N8N_WEBHOOK_ID` matches your webhook ID
+   - Verify `N8N_BASE_URL` is set correctly (should be `https://n8n.srv734188.hstgr.cloud`)
+   - Verify `N8N_WEBHOOK_ID` matches your webhook ID (should be `34f19691-dbbb-43e5-be8a-f4b22f20458e`)
 
 2. **Network Access:**
    - Ensure your n8n instance is publicly accessible
@@ -148,6 +157,7 @@ If you see this error, it means the webhook call failed. Check:
 3. **Webhook URL Format:**
    - The code constructs: `${N8N_BASE_URL}/webhook/${N8N_WEBHOOK_ID}/${businessFunction}`
    - Make sure this matches your n8n webhook configuration
+   - Verify streaming is enabled in your n8n workflow
 
 4. **n8n Response Format:**
    - Ensure your n8n workflow returns:
@@ -175,28 +185,31 @@ Before deploying to Vercel, test locally:
 
 1. Set up `.env.local` with:
    ```env
-   N8N_BASE_URL=https://n8n.srv838270.hstgr.cloud
-   N8N_WEBHOOK_ID=0a7ad9c6-bec1-45ff-9c4a-0884f6725583
+   N8N_BASE_URL=https://n8n.srv734188.hstgr.cloud
+   N8N_WEBHOOK_ID=34f19691-dbbb-43e5-be8a-f4b22f20458e
    ```
 
 2. Run `pnpm dev` and test sending a message
 
 3. Check that it reaches your n8n webhook
 
-## Production vs Test Webhook
+## Streaming Support
 
-The code currently uses `/webhook/` (production webhook) in the URL. This is the active production endpoint that your n8n workflow is configured to use.
+The code now supports streaming responses from n8n. When streaming is enabled:
 
-If you ever need to switch to the test webhook (`/webhook-test/`) for testing:
-
-1. Modify the code in `app/(chat)/api/chat/route.ts` line 133
-2. Change from `/webhook/` to `/webhook-test/`
-3. Or add an environment variable to toggle between test and production
+- Responses are processed in real-time as chunks arrive
+- Supports multiple streaming formats:
+  - Server-Sent Events (SSE): `text/event-stream`
+  - JSON Lines: `application/stream+json`
+  - Plain text streaming
+- Falls back to non-streaming mode for backward compatibility
+- Complete messages are saved to the database after streaming completes
 
 ## Additional Notes
 
-- The webhook ID (`0a7ad9c6-bec1-45ff-9c4a-0884f6725583`) matches what's shown in your n8n interface
+- The webhook ID (`34f19691-dbbb-43e5-be8a-f4b22f20458e`) matches what's shown in your n8n interface
 - The business function is dynamically inserted into the URL path
 - All requests are POST with JSON body
 - The system handles errors gracefully and shows "offline:chat" if the webhook is unavailable
+- Streaming improves user experience by showing responses as they're generated
 
