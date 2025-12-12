@@ -38,6 +38,7 @@ function PureMessages({
     scrollToBottom,
     hasSentMessage,
   } = useMessages({
+    messages,
     status,
   });
 
@@ -89,11 +90,10 @@ function PureMessages({
             />
           ))}
 
-          {/* Only show thinking message if status is submitted AND there's no assistant message yet */}
+          {/* Show thinking message when status is submitted AND the last message is from user */}
           {status === "submitted" &&
-            !messages.some((m) => m.role === "assistant") && (
-              <ThinkingMessage />
-            )}
+            messages.length > 0 &&
+            messages.at(-1)?.role === "user" && <ThinkingMessage />}
 
           <div
             className="min-h-[24px] min-w-[24px] shrink-0"

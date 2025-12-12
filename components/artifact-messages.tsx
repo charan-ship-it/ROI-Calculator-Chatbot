@@ -35,6 +35,7 @@ function PureArtifactMessages({
     onViewportLeave,
     hasSentMessage,
   } = useMessages({
+    messages,
     status,
   });
 
@@ -64,9 +65,10 @@ function PureArtifactMessages({
       ))}
 
       <AnimatePresence mode="wait">
-        {/* Only show thinking message if status is submitted AND there's no assistant message yet */}
+        {/* Show thinking message when status is submitted AND the last message is from user */}
         {status === "submitted" &&
-          !messages.some((m) => m.role === "assistant") && (
+          messages.length > 0 &&
+          messages.at(-1)?.role === "user" && (
             <ThinkingMessage key="thinking" />
           )}
       </AnimatePresence>
