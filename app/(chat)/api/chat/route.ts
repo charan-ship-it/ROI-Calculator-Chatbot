@@ -179,7 +179,7 @@ export async function POST(request: Request) {
     // Format: /webhook/{webhookId}/{businessFunction}
     // URL encode the businessFunction to handle spaces (e.g., "AI Accelerate" -> "AI%20Accelerate")
     const encodedBusinessFunction = encodeURIComponent(businessFunction);
-    const n8nWebhookUrl = `${n8nBaseUrl}/webhook-test/${n8nWebhookId}/${encodedBusinessFunction}`;
+    const n8nWebhookUrl = `${n8nBaseUrl}/webhook/${n8nWebhookId}/${encodedBusinessFunction}`;
 
     if (isDevelopment) {
       console.log("=== N8N WEBHOOK CONFIGURATION ===");
