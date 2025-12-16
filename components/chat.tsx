@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import type { DataUIPart } from "ai";
 import { DefaultChatTransport } from "ai";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { ChatHeader } from "@/components/chat-header";
@@ -20,6 +20,7 @@ import {
 import { useArtifactSelector } from "@/hooks/use-artifact";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
+import { getBusinessFunctionFromPathname } from "@/lib/business-function-routing";
 import type { Vote } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import type { Attachment, ChatMessage, CustomUIDataTypes } from "@/lib/types";
@@ -41,6 +42,7 @@ export function Chat({
   isReadonly,
   autoResume,
   initialLastContext,
+  initialBusinessFunction,
 }: {
   id: string;
   initialMessages: ChatMessage[];
@@ -49,8 +51,10 @@ export function Chat({
   isReadonly: boolean;
   autoResume: boolean;
   initialLastContext?: AppUsage;
+  initialBusinessFunction?: BusinessFunction;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
 
   const { visibilityType } = useChatVisibility({
     chatId: id,
@@ -75,10 +79,31 @@ export function Chat({
   const [usage, setUsage] = useState<AppUsage | undefined>(initialLastContext);
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
-  const [businessFunction, setBusinessFunction] =
-    useState<BusinessFunction>("AI Accelerate");
+
+  // Derive business function from URL or use initial prop
+  // URL takes precedence for new chats, but for existing chats we use the prop
+  const getInitialBusinessFunction = (): BusinessFunction => {
+    const urlBusinessFunction = getBusinessFunctionFromPathname(pathname);
+    // If URL has a business function (and we're not on /chat/[id]), use it
+    // Otherwise use initial prop or default
+    return urlBusinessFunction ?? initialBusinessFunction ?? "AI Accelerate";
+  };
+
+  const [businessFunction, setBusinessFunction] = useState<BusinessFunction>(
+    getInitialBusinessFunction()
+  );
   const currentModelIdRef = useRef(currentModelId);
   const businessFunctionRef = useRef(businessFunction);
+
+  // Sync business function when URL changes (for new chat pages)
+  useEffect(() => {
+    const urlBusinessFunction = getBusinessFunctionFromPathname(pathname);
+    // Only update if URL has a business function and it's different
+    // Don't update if we're on /chat/[id] route (existing chats)
+    if (urlBusinessFunction && urlBusinessFunction !== businessFunction) {
+      setBusinessFunction(urlBusinessFunction);
+    }
+  }, [pathname, businessFunction]);
 
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
@@ -225,6 +250,7 @@ export function Chat({
         />
 
         <Messages
+          businessFunction={businessFunction}
           chatId={id}
           isArtifactVisible={isArtifactVisible}
           isReadonly={isReadonly}

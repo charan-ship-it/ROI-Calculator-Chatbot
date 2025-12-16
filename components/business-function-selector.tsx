@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { type ReactNode, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,14 +9,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { businessFunctionToSlug } from "@/lib/business-function-routing";
 import { cn } from "@/lib/utils";
 import { CheckCircleFillIcon, ChevronDownIcon } from "./icons";
 
 export type BusinessFunction =
   | "AI Accelerate"
-  | "Sales"
   | "Marketing"
-  | "Customer Service";
+  | "Sales"
+  | "Customer Success"
+  | "Operations"
+  | "Finance"
+  | "HR";
 
 const businessFunctions: Array<{
   id: BusinessFunction;
@@ -29,19 +34,34 @@ const businessFunctions: Array<{
     description: "General AI assistance and acceleration",
   },
   {
-    id: "Sales",
-    label: "Sales",
-    description: "Sales-related queries and assistance",
-  },
-  {
     id: "Marketing",
     label: "Marketing",
     description: "Marketing campaigns and strategies",
   },
   {
-    id: "Customer Service",
-    label: "Customer Service",
-    description: "Customer support and inquiries",
+    id: "Sales",
+    label: "Sales",
+    description: "Sales-related queries and assistance",
+  },
+  {
+    id: "Customer Success",
+    label: "Customer Success",
+    description: "Customer success and retention",
+  },
+  {
+    id: "Operations",
+    label: "Operations",
+    description: "Operational efficiency and processes",
+  },
+  {
+    id: "Finance",
+    label: "Finance",
+    description: "Financial planning and analysis",
+  },
+  {
+    id: "HR",
+    label: "HR",
+    description: "Human resources and talent management",
   },
 ];
 
@@ -54,6 +74,7 @@ export function BusinessFunctionSelector({
   onBusinessFunctionChange: (functionType: BusinessFunction) => void;
 } & React.ComponentProps<typeof Button>) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   const selectedFunction = useMemo(
     () =>
@@ -88,6 +109,9 @@ export function BusinessFunctionSelector({
             data-testid={`business-function-selector-item-${func.id}`}
             key={func.id}
             onSelect={() => {
+              const slug = businessFunctionToSlug(func.id);
+              const path = slug === "" ? "/" : `/${slug}`;
+              router.push(path);
               onBusinessFunctionChange(func.id);
               setOpen(false);
             }}

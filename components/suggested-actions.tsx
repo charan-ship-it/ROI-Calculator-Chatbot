@@ -31,12 +31,33 @@ const getSuggestedActions = (businessFunction?: BusinessFunction): string[] => {
         "I would like to get a ROI and Savings for my Company with Al",
         "What's the ROI for automating lead scoring and segmentation?",
       ];
-    case "Customer Service":
+    case "Customer Success":
       return [
-        "Calculate ROI for Customer Service automation and ticket handling",
-        "What's the ROI for AI chatbots and automated customer support?",
-        "Help me assess ROI for Customer Service response time improvements",
-        "What's the ROI for automating customer inquiry routing and resolution?",
+        "Calculate ROI for Customer Success automation and retention initiatives",
+        "What's the ROI for AI-powered customer health scoring and churn prediction?",
+        "Help me assess ROI for automating customer onboarding and success workflows",
+        "What's the ROI for customer engagement and expansion automation?",
+      ];
+    case "Operations":
+      return [
+        "Calculate ROI for Operations automation and process optimization",
+        "What's the ROI for AI-powered supply chain and logistics automation?",
+        "Help me assess ROI for automating operational workflows and task management",
+        "What's the ROI for operational analytics and reporting automation?",
+      ];
+    case "Finance":
+      return [
+        "Calculate ROI for Finance automation and financial process optimization",
+        "What's the ROI for AI-powered financial analysis and forecasting?",
+        "Help me assess ROI for automating accounting, invoicing, and reconciliation",
+        "What's the ROI for financial reporting and compliance automation?",
+      ];
+    case "HR":
+      return [
+        "Calculate ROI for HR automation and talent management optimization",
+        "What's the ROI for AI-powered recruitment and candidate screening?",
+        "Help me assess ROI for automating onboarding, training, and performance management",
+        "What's the ROI for HR analytics and workforce planning automation?",
       ];
     default:
       return [

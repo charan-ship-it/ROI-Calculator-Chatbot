@@ -154,6 +154,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
 
     if (deleteId === id) {
       router.push("/");
+      router.refresh();
     }
   };
 

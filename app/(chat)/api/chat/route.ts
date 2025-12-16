@@ -80,12 +80,14 @@ export async function POST(request: Request) {
       return new ChatSDKError("unauthorized:chat").toResponse();
     }
 
-    // Get chat first to check if it already exists
-    const chat = await getChatById({ id });
+    // Parallelize database queries for better performance
+    const [chat, existingUser] = await Promise.all([
+      getChatById({ id }),
+      getUserById(session.user.id),
+    ]);
 
     // Ensure user exists in database, create guest if not
     let currentUserId = session.user.id;
-    const existingUser = await getUserById(session.user.id);
 
     if (!existingUser) {
       // User was deleted from DB but session still has old ID
@@ -107,11 +109,11 @@ export async function POST(request: Request) {
       }
     }
 
+    // Handle chat ownership and creation
     if (chat) {
-      // Check if chat's owner still exists
-      const chatOwner = await getUserById(chat.userId);
-
+      // Check if chat's owner still exists (only if needed)
       if (chat.userId !== currentUserId) {
+        const chatOwner = await getUserById(chat.userId);
         // If chat owner exists but is different user, deny access
         if (chatOwner) {
           // Chat belongs to a different existing user, deny access
@@ -122,9 +124,16 @@ export async function POST(request: Request) {
         await updateChatUserIdById({ chatId: id, userId: currentUserId });
       }
     } else {
-      const title = await generateTitleFromUserMessage({
-        message,
-      });
+      // Extract text early for title generation
+      const userMessageText = getTextFromMessage(message);
+      if (!userMessageText) {
+        return new ChatSDKError("bad_request:api").toResponse();
+      }
+
+      // Generate title and save chat in parallel
+      const [title] = await Promise.all([
+        generateTitleFromUserMessage({ message }),
+      ]);
 
       await saveChat({
         id,
@@ -155,8 +164,9 @@ export async function POST(request: Request) {
       ],
     });
 
+    // Generate streamId while preparing n8n request (non-blocking)
     const streamId = generateUUID();
-    await createStreamId({ streamId, chatId: id });
+    const createStreamIdPromise = createStreamId({ streamId, chatId: id });
 
     // Get n8n configuration from environment variables
     // Updated webhook: https://n8n.srv734188.hstgr.cloud/webhook/34f19691-dbbb-43e5-be8a-f4b22f20458e/:businessFunction
@@ -169,7 +179,7 @@ export async function POST(request: Request) {
     // Format: /webhook/{webhookId}/{businessFunction}
     // URL encode the businessFunction to handle spaces (e.g., "AI Accelerate" -> "AI%20Accelerate")
     const encodedBusinessFunction = encodeURIComponent(businessFunction);
-    const n8nWebhookUrl = `${n8nBaseUrl}/webhook/${n8nWebhookId}/${encodedBusinessFunction}`;
+    const n8nWebhookUrl = `${n8nBaseUrl}/webhook-test/${n8nWebhookId}/${encodedBusinessFunction}`;
 
     if (isDevelopment) {
       console.log("=== N8N WEBHOOK CONFIGURATION ===");
@@ -195,24 +205,27 @@ export async function POST(request: Request) {
       message: string;
       sessionId: string;
       userId: string;
-      functions?: string[];
+      functions?: string[] | null;
     } = {
       message: userMessageText,
       sessionId: id, // Use chat ID as session ID
       userId: currentUserId,
     };
 
-    // Only include functions array if businessFunction is Sales, Marketing, or Customer Service
-    const shouldIncludeBusinessFunction =
-      businessFunction === "Sales" ||
-      businessFunction === "Marketing" ||
-      businessFunction === "Customer Service";
+    // Only include functions array if businessFunction is not AI Accelerate
+    // For AI Accelerate, send null
+    const shouldIncludeBusinessFunction = businessFunction !== "AI Accelerate";
 
     if (shouldIncludeBusinessFunction) {
       n8nRequestBody.functions = [businessFunction];
+    } else {
+      n8nRequestBody.functions = null;
     }
 
-    // Call n8n webhook
+    // Ensure streamId is created (non-blocking, but we'll wait for it)
+    await createStreamIdPromise;
+
+    // Call n8n webhook with timeout and keep-alive
     let n8nResponse: Response;
     try {
       if (isDevelopment) {
@@ -220,13 +233,34 @@ export async function POST(request: Request) {
         console.log("Request body:", JSON.stringify(n8nRequestBody, null, 2));
       }
 
-      n8nResponse = await fetch(n8nWebhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(n8nRequestBody),
-      });
+      // Create AbortController for timeout (30 seconds max)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+      try {
+        n8nResponse = await fetch(n8nWebhookUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept:
+              "application/json, text/event-stream, application/stream+json",
+            "Accept-Encoding": "gzip, deflate, br",
+            Connection: "keep-alive",
+          },
+          body: JSON.stringify(n8nRequestBody),
+          signal: controller.signal,
+          // Enable keep-alive for connection reuse
+          keepalive: true,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          console.error("n8n webhook request timed out after 30 seconds");
+          return new ChatSDKError("offline:chat").toResponse();
+        }
+        throw fetchError;
+      }
 
       if (isDevelopment) {
         console.log(

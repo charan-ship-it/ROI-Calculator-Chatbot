@@ -6,17 +6,17 @@ import { DataStreamHandler } from "@/components/data-stream-handler";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { createGuestUser, getUserById } from "@/lib/db/queries";
 import { generateUUID } from "@/lib/utils";
-import { auth } from "../(auth)/auth";
+import { auth } from "../../(auth)/auth";
 
 export default function Page() {
   return (
     <Suspense fallback={<div className="flex h-dvh" />}>
-      <NewChatPage />
+      <OperationsPage />
     </Suspense>
   );
 }
 
-async function NewChatPage() {
+async function OperationsPage() {
   // Try to get session, but don't fail if it's not available yet
   const session = await auth().catch(() => {
     // Redirect to guest auth to initialize session
@@ -54,7 +54,7 @@ async function NewChatPage() {
         <Chat
           autoResume={false}
           id={id}
-          initialBusinessFunction="AI Accelerate"
+          initialBusinessFunction="Operations"
           initialChatModel={DEFAULT_CHAT_MODEL}
           initialMessages={[]}
           initialVisibilityType="private"
@@ -71,7 +71,7 @@ async function NewChatPage() {
       <Chat
         autoResume={false}
         id={id}
-        initialBusinessFunction="AI Accelerate"
+        initialBusinessFunction="Operations"
         initialChatModel={modelIdFromCookie.value}
         initialMessages={[]}
         initialVisibilityType="private"
