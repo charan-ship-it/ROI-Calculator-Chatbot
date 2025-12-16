@@ -287,6 +287,7 @@ export function Chat({
 
       <Artifact
         attachments={attachments}
+        businessFunction={businessFunction}
         chatId={id}
         input={input}
         isReadonly={isReadonly}

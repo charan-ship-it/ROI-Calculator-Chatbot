@@ -75,6 +75,7 @@ function PureMessages({
 
           {messages.map((message, index) => (
             <PreviewMessage
+              businessFunction={businessFunction}
               chatId={chatId}
               isLoading={
                 status === "streaming" && messages.length - 1 === index
@@ -98,7 +99,9 @@ function PureMessages({
           {/* Show thinking message when status is submitted AND the last message is from user */}
           {status === "submitted" &&
             messages.length > 0 &&
-            messages.at(-1)?.role === "user" && <ThinkingMessage />}
+            messages.at(-1)?.role === "user" && (
+              <ThinkingMessage businessFunction={businessFunction} />
+            )}
 
           <div
             className="min-h-[24px] min-w-[24px] shrink-0"

@@ -6,6 +6,7 @@ import { useMessages } from "@/hooks/use-messages";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import type { UIArtifact } from "./artifact";
+import type { BusinessFunction } from "./business-function-selector";
 import { PreviewMessage, ThinkingMessage } from "./message";
 
 type ArtifactMessagesProps = {
@@ -17,6 +18,7 @@ type ArtifactMessagesProps = {
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   isReadonly: boolean;
   artifactStatus: UIArtifact["status"];
+  businessFunction?: BusinessFunction;
 };
 
 function PureArtifactMessages({
@@ -27,6 +29,7 @@ function PureArtifactMessages({
   setMessages,
   regenerate,
   isReadonly,
+  businessFunction,
 }: ArtifactMessagesProps) {
   const {
     containerRef: messagesContainerRef,
@@ -46,6 +49,7 @@ function PureArtifactMessages({
     >
       {messages.map((message, index) => (
         <PreviewMessage
+          businessFunction={businessFunction}
           chatId={chatId}
           isLoading={status === "streaming" && index === messages.length - 1}
           isReadonly={isReadonly}
@@ -69,7 +73,10 @@ function PureArtifactMessages({
         {status === "submitted" &&
           messages.length > 0 &&
           messages.at(-1)?.role === "user" && (
-            <ThinkingMessage key="thinking" />
+            <ThinkingMessage
+              businessFunction={businessFunction}
+              key="thinking"
+            />
           )}
       </AnimatePresence>
 

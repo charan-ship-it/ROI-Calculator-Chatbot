@@ -67,6 +67,7 @@ function PureArtifact({
   isReadonly,
   selectedVisibilityType,
   selectedModelId,
+  businessFunction,
 }: {
   chatId: string;
   input: string;
@@ -83,6 +84,7 @@ function PureArtifact({
   isReadonly: boolean;
   selectedVisibilityType: VisibilityType;
   selectedModelId: string;
+  businessFunction?: BusinessFunction;
 }) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
 
@@ -321,6 +323,7 @@ function PureArtifact({
               <div className="flex h-full flex-col items-center justify-between">
                 <ArtifactMessages
                   artifactStatus={artifact.status}
+                  businessFunction={businessFunction}
                   chatId={chatId}
                   isReadonly={isReadonly}
                   messages={messages}

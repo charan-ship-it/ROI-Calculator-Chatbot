@@ -5,6 +5,7 @@ import { memo, useState } from "react";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
+import type { BusinessFunction } from "./business-function-selector";
 import { useDataStream } from "./data-stream-provider";
 import { DocumentToolResult } from "./document";
 import { DocumentPreview } from "./document-preview";
@@ -23,6 +24,25 @@ import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
 
+// Map business function to avatar image
+const getAvatarForBusinessFunction = (
+  businessFunction?: BusinessFunction
+): string => {
+  switch (businessFunction) {
+    case "Marketing":
+      return "/images/agent-jules.png";
+    case "Customer Success":
+    case "Operations":
+      return "/images/agent-george.png";
+    case "Finance":
+      return "/images/agent-michael.png";
+    case "HR":
+      return "/images/agent-lucy.png";
+    default:
+      return "/images/joy-avatar.png";
+  }
+};
+
 const PurePreviewMessage = ({
   chatId,
   message,
@@ -32,6 +52,7 @@ const PurePreviewMessage = ({
   regenerate,
   isReadonly,
   requiresScrollPadding: _requiresScrollPadding,
+  businessFunction,
 }: {
   chatId: string;
   message: ChatMessage;
@@ -41,6 +62,7 @@ const PurePreviewMessage = ({
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   isReadonly: boolean;
   requiresScrollPadding: boolean;
+  businessFunction?: BusinessFunction;
 }) => {
   const [mode, setMode] = useState<"view" | "edit">("view");
 
@@ -75,9 +97,11 @@ const PurePreviewMessage = ({
         {message.role === "assistant" && (
           <div className="-mt-1 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border">
             <img
-              alt="Joy - ROI Assistant"
+              alt="ROI Assistant"
               className="size-full object-cover"
-              src="/images/joy-avatar.png"
+              height={32}
+              src={getAvatarForBusinessFunction(businessFunction)}
+              width={32}
             />
           </div>
         )}
@@ -318,7 +342,11 @@ export const PreviewMessage = memo(
   }
 );
 
-export const ThinkingMessage = () => {
+export const ThinkingMessage = ({
+  businessFunction,
+}: {
+  businessFunction?: BusinessFunction;
+}) => {
   return (
     <div
       className="group/message fade-in w-full animate-in duration-300"
@@ -328,9 +356,11 @@ export const ThinkingMessage = () => {
       <div className="flex items-start justify-start gap-3">
         <div className="-mt-1 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border">
           <img
-            alt="Joy - Thinking"
+            alt="Thinking"
             className="size-full object-cover"
-            src="/images/joy-avatar.png"
+            height={32}
+            src={getAvatarForBusinessFunction(businessFunction)}
+            width={32}
           />
         </div>
 
