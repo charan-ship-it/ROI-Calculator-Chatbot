@@ -142,16 +142,8 @@ export function SidebarUserNav({ user }: { user: User }) {
               <button
                 className="w-full cursor-pointer"
                 onClick={() => {
-                  if (status === "loading") {
-                    toast({
-                      type: "error",
-                      description:
-                        "Checking authentication status, please try again!",
-                    });
-
-                    return;
-                  }
-
+                  // Status is already checked in the component render logic
+                  // At this point, we know status is not "loading" due to early return
                   if (isGuest) {
                     router.push("/login");
                   } else {
